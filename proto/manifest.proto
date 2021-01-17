@@ -1,0 +1,70 @@
+/* This defines a service manifest. It is how the runtime is able to introspect
+ * the structure of a service and figure out what infrastructure is required
+ * in order to operate it.
+ */
+syntax = "proto3";
+package manifest;
+
+option go_package = "github.com/foldsh/fold/manifest";
+
+// A manifest describing everything required to build and deploy a service.
+message Manifest {
+  // The name of the service.
+  string name = 1;
+
+  // The version of the service.
+  Version version = 2;
+
+  // Information required to build the service. This will be filled in
+  // by the command line tool.
+  BuildInfo build_info = 3;
+
+  // The routes defined by the router within the service.
+  repeated Route routes = 4;
+}
+
+message BuildInfo {
+  // The maintainer of the service.
+  string maintainer = 1;
+
+  // The image name.
+  string image = 2;
+
+  // The image tag.
+  string tag = 3;
+
+  // The path to the service, relative to the project root.
+  string path = 4;
+}
+
+// A SemVer version number.
+message Version {
+  // Major
+  int32 major = 1;
+
+  // Minor
+  int32 minor = 2;
+
+  // Patch
+  int32 patch = 3;
+}
+
+// A route defined by a service.
+message Route {
+  // The HTTP method which this Route handles.
+  HttpMethod http_method = 1;
+
+  // The identifier of the handler that will handle the route.
+  string handler = 2;
+
+  // The path pattern that will match this route.
+  string path_spec = 3;  
+}
+
+enum HttpMethod {
+  GET = 0;
+  PUT = 1;
+  POST = 2;
+  DELETE = 3;
+}
+

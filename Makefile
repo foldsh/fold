@@ -1,0 +1,30 @@
+build: protoc
+	mkdir -p bin
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin ./...
+.PHONY: build
+
+install: protoc
+	go install ./...
+.PHONY: install
+
+images: protoc
+	docker build -t foldrt ./docker/Dockerfile
+.PHONY: docker
+
+protoc:
+	protoc --proto_path=proto \
+		--go_out=runtime/service \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=runtime/service \
+		--go-grpc_opt=paths=source_relative \
+		proto/ingress.proto
+	protoc --proto_path=proto \
+		--go_out=manifest \
+		--go_opt=paths=source_relative \
+		proto/manifest.proto
+.PHONY: protoc
+
+clean:
+	rm -rf bin
+	find . -name "*.pb.go" -type f -delete
+.PHONY: install
