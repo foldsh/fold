@@ -13,41 +13,57 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"io"
 	"os"
 
+	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 )
 
 type Service interface {
-	Start()
-	DoRequest(req *Request) *Response
-	GetManifest() *manifest.Manifest
+	Start() error
+	Stop() error
+	DoRequest(req *Request) (*Response, error)
+	GetManifest() (*manifest.Manifest, error)
 	Signal(sig os.Signal)
 }
 
-func NewService(cmd Command) (Service, error) {
+func NewService(logger logging.Logger, cmd Command) (Service, error) {
 	addr := newAddr()
 	client := newIngressClient(addr)
 	process, err := newSubprocess(cmd, addr)
 	if err != nil {
-		return nil, errors.New("Failed to start service.")
+		return nil, errors.New("failed to start service")
 	}
-	return &service{cmd, client, process}, nil
+	return &service{cmd, addr, client, process, logger}, nil
 }
 
 type Command struct {
-	command string
-	args    []string
+	Command string
+	Args    []string
 }
 
 type service struct {
 	cmd     Command
+	addr    string
 	client  *ingressClient
-	process *subprocess
+	process foldSubprocess
+	logger  logging.Logger
+}
+
+type foldSubprocess interface {
+	run() error
+	wait() error
+	kill() error
+	signal(sig os.Signal) error
+	setStdout(w io.Writer)
+	setStderr(w io.Writer)
 }
 
 func (s *service) Start() error {
+	s.logger.Debugf("starting application subprocess")
 	// TODO startup the process, and then the client.
 	//  There is one challenge here, which is that until the server
 	//  boots up on the other side, the socket doesn't exist.
@@ -56,19 +72,28 @@ func (s *service) Start() error {
 	if err != nil {
 		return err
 	}
+	s.logger.Debugf("starting gRPC client")
 	err = s.client.start()
 	if err != nil {
-		return errors.New("Failed to start client.")
+		return errors.New("failed to start client")
 	}
 	return nil
 }
 
-func (s *service) DoRequest(req *Request) *Response {
-	return &Response{}
+func (s *service) Stop() error {
+	s.logger.Debugf("shutting down application subprocess")
+	os.Remove(s.addr)
+	return s.process.kill()
 }
 
-func (s *service) GetManifest() *manifest.Manifest {
-	return &manifest.Manifest{}
+func (s *service) DoRequest(req *Request) (*Response, error) {
+	s.logger.Debug("performing application request: ", req)
+	return s.client.doRequest(context.Background(), req)
+}
+
+func (s *service) GetManifest() (*manifest.Manifest, error) {
+	s.logger.Debugf("retrieving manifest")
+	return s.client.getManifest(context.Background())
 }
 
 func (s *service) Signal(sig os.Signal) {

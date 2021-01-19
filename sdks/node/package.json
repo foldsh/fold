@@ -1,0 +1,15 @@
+{
+  "name": "@fold/sdk",
+  "version": "0.0.1",
+  "description": "The fold SDK for ts and js",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github.com/foldsh/fold"
+  },
+  "author": "Tom Firth",
+  "license": "MPL-2.0"
+}

@@ -19,7 +19,9 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type FoldIngressClient interface {
+	// Retrieve the manifest from the service.
 	GetManifest(ctx context.Context, in *ManifestReq, opts ...grpc.CallOption) (*manifest.Manifest, error)
+	// Ask the service to process an HTTP request.
 	DoRequest(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 }
 
@@ -53,7 +55,9 @@ func (c *foldIngressClient) DoRequest(ctx context.Context, in *Request, opts ...
 // All implementations must embed UnimplementedFoldIngressServer
 // for forward compatibility
 type FoldIngressServer interface {
+	// Retrieve the manifest from the service.
 	GetManifest(context.Context, *ManifestReq) (*manifest.Manifest, error)
+	// Ask the service to process an HTTP request.
 	DoRequest(context.Context, *Request) (*Response, error)
 	mustEmbedUnimplementedFoldIngressServer()
 }

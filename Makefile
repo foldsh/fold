@@ -1,5 +1,15 @@
 build: protoc
 	mkdir -p bin
+	CGO_ENABLED=0 go build -o bin ./...
+.PHONY: build
+
+install: protoc
+	mkdir -p bin
+	CGO_ENABLED=0 go install ./...
+.PHONY: build
+
+release: protoc
+	mkdir -p bin
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin ./...
 .PHONY: build
 
@@ -26,5 +36,4 @@ protoc:
 
 clean:
 	rm -rf bin
-	find . -name "*.pb.go" -type f -delete
 .PHONY: install
