@@ -1,4 +1,4 @@
-package service
+package supervisor
 
 import (
 	"fmt"

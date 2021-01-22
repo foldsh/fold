@@ -1,4 +1,4 @@
-package service
+package supervisor
 
 import (
 	"bytes"
@@ -7,13 +7,13 @@ import (
 )
 
 func TestShortLivedSubprocess(t *testing.T) {
-	p, err := newSubprocess(Command{"echo", []string{"-n", "TESTINPUT"}}, newAddr())
+	p := newSubprocess(newAddr())
 	buf := bytes.Buffer{}
-	p.setStdout(&buf)
+	p.sout = &buf
+	err := p.run("echo", "-n", "TESTINPUT")
 	if err != nil {
 		t.Fatalf("Failed to start subprocess")
 	}
-	p.run()
 	p.wait()
 	out := buf.String()
 	if out != "TESTINPUT" {
@@ -23,14 +23,14 @@ func TestShortLivedSubprocess(t *testing.T) {
 
 func TestEnvSetCorrectly(t *testing.T) {
 	addr := newAddr()
-	cmd := "echo -n $FOLD_SOCK_ADDR"
-	p, err := newSubprocess(Command{"bash", []string{"-c", cmd}}, addr)
+	p := newSubprocess(addr)
 	buf := bytes.Buffer{}
-	p.setStdout(&buf)
+	p.sout = &buf
+	cmd := "echo -n $FOLD_SOCK_ADDR"
+	err := p.run("bash", "-c", cmd)
 	if err != nil {
 		t.Fatalf("Failed to start subprocess")
 	}
-	p.run()
 	p.wait()
 	out := buf.String()
 	if out != addr {
@@ -41,14 +41,14 @@ func TestEnvSetCorrectly(t *testing.T) {
 func TestLongLivedProcessKill(t *testing.T) {
 	// Hardly a long lived process but 10 seconds is more than enough time
 	// to kill it and test that that is working.
-	cmd := "echo 'for i in {1..10}; do echo $i; sleep 1; done' | bash"
-	p, err := newSubprocess(Command{"bash", []string{"-c", cmd}}, newAddr())
+	p := newSubprocess(newAddr())
 	buf := bytes.Buffer{}
-	p.setStdout(&buf)
+	p.sout = &buf
+	cmd := "echo 'for i in {1..10}; do echo $i; sleep 1; done' | bash"
+	err := p.run("bash", "-c", cmd)
 	if err != nil {
 		t.Fatalf("Failed to start subprocess")
 	}
-	p.run()
 	// Ugly but we need to allow a little bit of time for the process to
 	// start and print the first number.
 	time.Sleep(42 * time.Millisecond)

@@ -11,5 +11,5 @@
 package handler
 
 type Handler interface {
-	Start()
+	Serve()
 }

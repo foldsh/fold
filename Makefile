@@ -23,9 +23,9 @@ images: protoc
 
 protoc:
 	protoc --proto_path=proto \
-		--go_out=runtime/service \
+		--go_out=runtime/supervisor/pb \
 		--go_opt=paths=source_relative \
-		--go-grpc_out=runtime/service \
+		--go-grpc_out=runtime/supervisor/pb \
 		--go-grpc_opt=paths=source_relative \
 		proto/ingress.proto
 	protoc --proto_path=proto \

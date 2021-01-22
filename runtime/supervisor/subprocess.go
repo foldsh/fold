@@ -1,6 +1,6 @@
 // Package subprocess offers a simple way to manage a subprocess.
 // Its concern is starting, stopping, handling stdin/out... that kind of thing.
-package service
+package supervisor
 
 import (
 	"errors"
@@ -11,18 +11,36 @@ import (
 )
 
 type subprocess struct {
-	cmd *exec.Cmd
+	foldSockAddr string
+	cmd          *exec.Cmd
+	sout         io.Writer
+	serr         io.Writer
 }
 
-func newSubprocess(cmd Command, foldSockAddr string) (*subprocess, error) {
-	c := exec.Command(cmd.Command, cmd.Args...)
-	c.Stdout = os.Stdout
-	c.Stderr = os.Stderr
-	c.Env = append(os.Environ(), fmt.Sprintf("FOLD_SOCK_ADDR=%s", foldSockAddr))
-	return &subprocess{c}, nil
+/*
+We want to be able to hide this behind something so that we can completely
+swap the subprocess out for the threaded version in a test.
+
+why can't we d
+*/
+
+func newSubprocess(foldSockAddr string) *subprocess {
+	return &subprocess{
+		foldSockAddr: foldSockAddr,
+		sout:         os.Stdout,
+		serr:         os.Stderr,
+	}
 }
 
-func (sp *subprocess) run() error {
+func (sp *subprocess) run(cmd string, args ...string) error {
+	c := exec.Command(cmd, args...)
+	c.Stdout = sp.sout
+	c.Stderr = sp.serr
+	c.Env = append(
+		os.Environ(),
+		fmt.Sprintf("FOLD_SOCK_ADDR=%s", sp.foldSockAddr),
+	)
+	sp.cmd = c
 	if err := sp.cmd.Start(); err != nil {
 		return errors.New("failed to start subprocess")
 	}
@@ -49,14 +67,4 @@ func (sp *subprocess) signal(sig os.Signal) error {
 		return errors.New("failed to send signal")
 	}
 	return nil
-}
-
-// Useful for capturing stdout for testing.
-func (sp *subprocess) setStdout(w io.Writer) {
-	sp.cmd.Stdout = w
-}
-
-// Useful for capturing stderr for testing.
-func (sp *subprocess) setStderr(w io.Writer) {
-	sp.cmd.Stderr = w
 }

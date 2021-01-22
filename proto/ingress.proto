@@ -5,7 +5,7 @@
 syntax = "proto3";
 package ingress;
 
-option go_package = "github.com/foldsh/fold/runtime/service";
+option go_package = "github.com/foldsh/fold/runtime/supervisor/pb";
 
 import "manifest.proto";
 
@@ -34,16 +34,20 @@ message Request {
   // The body of the HTTP request. This will often be a JSON string
   // but could be anything if the appropriate content type is set 
   // in the headers.
-  string body = 4;
+  bytes body = 4;
 
   // The HTTP headers.
-  map<string, string> headers = 5;
+  map<string, StringArray> headers = 5;
 
   // The parsed path params.
   map<string, string> path_params = 6;
 
   // The parsed query params.
-  map<string, string> query_params = 7;
+  map<string, StringArray> query_params = 7;
+}
+
+message StringArray {
+  repeated string values = 1;
 }
 
 message Response {
@@ -52,8 +56,8 @@ message Response {
 
   // The body of the HTTP response. As with the Request, it will
   // most often be a JSON string but the headers say what it really is.
-  string body = 2;
+  bytes body = 2;
 
   // The HTTP headers for the response.
-  map<string, string> headers = 3;
+  map<string, StringArray> headers = 3;
 }

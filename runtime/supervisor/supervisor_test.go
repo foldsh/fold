@@ -1,8 +1,7 @@
-package service
+package supervisor
 
 import (
 	"context"
-	"io"
 	"net"
 	"os"
 	"testing"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
+	"github.com/foldsh/fold/runtime/supervisor/pb"
 )
 
 // This tests the whole lifecycle of a service, albeit in a fairly abstract
@@ -19,12 +19,12 @@ import (
 // of the foldSubprocess that just uses a goroutine to simulate the interface.
 // This means I can just make a little mock gRPC server in the test file and
 // run it in a goroutine.
-func TestServiceIntegration(t *testing.T) {
+func TestSupervisorIntegration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
-	service := newTestService(t)
-	err := service.Start()
+	service := newTestSupervisor(t)
+	err := service.Exec("test", "arg1", "arg2")
 	if err != nil {
 		t.Fatalf("failed to start service")
 	}
@@ -38,22 +38,22 @@ func TestServiceIntegration(t *testing.T) {
 		t.Fatalf("Exepcted manifest to have version %+v, but found %+v", expectation, m.Version)
 	}
 
-	req := &Request{HttpMethod: manifest.HttpMethod_GET, Path: "/test", Body: `{"msg": "test_body"}`, Headers: nil, Params: nil}
+	req := &Request{HttpMethod: "GET", Path: "/test", Body: []byte(`{"msg": "test_body"}`)}
 	res, err := service.DoRequest(req)
 	if err != nil {
 		t.Fatalf("Failed to make request")
 	}
-	if res.Body != req.Body {
+	if string(res.Body) != string(req.Body) {
 		t.Fatalf("Exepcted respond body to equal request body. Expected %v but found %v", req.Body, res.Body)
 	}
-	service.Stop()
+	service.Shutdown()
 }
 
-func newTestService(t *testing.T) Service {
+func newTestSupervisor(t *testing.T) Supervisor {
 	addr := newAddr()
 	client := newIngressClient(addr)
 	process := &goSubprocess{newTestIngressServer(addr), t}
-	return &service{Command{}, addr, client, process, logging.NewTestLogger()}
+	return &service{addr, client, process, logging.NewTestLogger()}
 }
 
 // goroutine based implementation of the foldSubprocess
@@ -62,7 +62,7 @@ type goSubprocess struct {
 	t      *testing.T
 }
 
-func (gsp *goSubprocess) run() error {
+func (gsp *goSubprocess) run(_ string, _ ...string) error {
 	go func() {
 		// A sleep better simulates a new process starting and makes
 		// sure that our logic for waiting for the server to come up
@@ -86,17 +86,9 @@ func (gsp *goSubprocess) signal(sig os.Signal) error {
 	return nil
 }
 
-func (gsp *goSubprocess) setStdout(w io.Writer) {
-	return
-}
-
-func (gsp *goSubprocess) setStderr(w io.Writer) {
-	return
-}
-
 // ingressServer for testing
 type testIngressServer struct {
-	UnimplementedFoldIngressServer
+	pb.UnimplementedFoldIngressServer
 	socket string
 	server *grpc.Server
 }
@@ -111,7 +103,7 @@ func (is *testIngressServer) start(t *testing.T) {
 		t.Fatalf("failed to listen: %v", err)
 	}
 	is.server = grpc.NewServer()
-	RegisterFoldIngressServer(is.server, is)
+	pb.RegisterFoldIngressServer(is.server, is)
 	if err := is.server.Serve(lis); err != nil {
 		t.Fatalf("failed to serve: %v", err)
 	}
@@ -121,12 +113,12 @@ func (is *testIngressServer) stop() {
 	is.server.Stop()
 }
 
-func (is *testIngressServer) GetManifest(ctx context.Context, in *ManifestReq) (*manifest.Manifest, error) {
+func (is *testIngressServer) GetManifest(ctx context.Context, in *pb.ManifestReq) (*manifest.Manifest, error) {
 	return &manifest.Manifest{Version: &manifest.Version{Major: 1, Minor: 0, Patch: 0}}, nil
 }
 
-func (is *testIngressServer) DoRequest(ctx context.Context, in *Request) (*Response, error) {
-	return &Response{Status: 200, Body: in.Body, Headers: nil}, nil
+func (is *testIngressServer) DoRequest(ctx context.Context, in *pb.Request) (*pb.Response, error) {
+	return &pb.Response{Status: 200, Body: in.Body, Headers: nil}, nil
 }
 
 func compareVersion(a *manifest.Version, b *manifest.Version) bool {

@@ -1,4 +1,4 @@
-package service
+package supervisor
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/backoff"
 
 	"github.com/foldsh/fold/manifest"
+	"github.com/foldsh/fold/runtime/supervisor/pb"
 )
 
 // ingressClient wraps the gRPC client to communicate with the service.
@@ -18,7 +19,7 @@ import (
 type ingressClient struct {
 	foldSockAddr string
 	conn         *grpc.ClientConn
-	client       FoldIngressClient
+	client       pb.FoldIngressClient
 }
 
 // Creates a new `IngressClient`. The `foldSockAddr` should be a complete
@@ -56,16 +57,53 @@ func (ic *ingressClient) start() error {
 		return fmt.Errorf("Failed to dial grpc server: %v", err)
 	}
 	ic.conn = conn
-	ic.client = NewFoldIngressClient(conn)
+	ic.client = pb.NewFoldIngressClient(conn)
 	return nil
 }
 
 // Retrieve the service manifest.
 func (ic *ingressClient) getManifest(ctx context.Context) (*manifest.Manifest, error) {
-	return ic.client.GetManifest(ctx, &ManifestReq{})
+	return ic.client.GetManifest(ctx, &pb.ManifestReq{})
 }
 
 // Submit a request to the service for processing.
 func (ic *ingressClient) doRequest(ctx context.Context, in *Request) (*Response, error) {
-	return ic.client.DoRequest(ctx, in)
+	res, err := ic.client.DoRequest(ctx, encodeRequest(in))
+	return decodeResponse(res), err
+}
+
+func encodeRequest(req *Request) *pb.Request {
+	return &pb.Request{
+		HttpMethod:  manifest.HttpMethodFromString(req.HttpMethod),
+		Handler:     req.Handler,
+		Path:        req.Path,
+		Body:        req.Body,
+		Headers:     encodeMapRepeatedString(req.Headers),
+		PathParams:  req.PathParams,
+		QueryParams: encodeMapRepeatedString(req.QueryParams),
+	}
+}
+
+func decodeResponse(res *pb.Response) *Response {
+	return &Response{
+		Status:  int(res.Status),
+		Body:    res.Body,
+		Headers: decodeMapRepeatedString(res.Headers),
+	}
+}
+
+func encodeMapRepeatedString(m map[string][]string) map[string]*pb.StringArray {
+	result := map[string]*pb.StringArray{}
+	for key, value := range m {
+		result[key] = &pb.StringArray{Values: value}
+	}
+	return result
+}
+
+func decodeMapRepeatedString(m map[string]*pb.StringArray) map[string][]string {
+	result := map[string][]string{}
+	for key, value := range m {
+		result[key] = value.Values
+	}
+	return result
 }

@@ -10,43 +10,59 @@
 // a few milliseconds to startup time and a few hundred microseconds to each
 // request) and because it allows us to generate much of the code for both sides.
 // This will make it very easy to implement the sdk in multiple languages.
-package service
+package supervisor
 
 import (
 	"context"
 	"errors"
-	"io"
 	"os"
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 )
 
-type Service interface {
-	Start() error
-	Stop() error
-	DoRequest(req *Request) (*Response, error)
+// This is just a wrapper around the protobuf definition in proto/ingress.proto
+// It makes them easier to use and avoids exposing the generated code to the
+// rest of the runtime package.
+type Request struct {
+	HttpMethod  string
+	Handler     string
+	Path        string
+	Body        []byte
+	Headers     map[string][]string
+	PathParams  map[string]string
+	QueryParams map[string][]string
+}
+
+// This is just a wrapper around the protobuf definition in proto/ingress.proto
+// It makes them easier to use and avoids exposing the generated code to the
+// rest of the runtime package.
+type Response struct {
+	Status  int
+	Body    []byte
+	Headers map[string][]string
+}
+
+type Supervisor interface {
+	Exec(string, ...string) error
+	Shutdown() error
+	DoRequest(*Request) (*Response, error)
 	GetManifest() (*manifest.Manifest, error)
-	Signal(sig os.Signal)
+	Signal(os.Signal)
 }
 
-func NewService(logger logging.Logger, cmd Command) (Service, error) {
+func NewSupervisor(logger logging.Logger) Supervisor {
 	addr := newAddr()
-	client := newIngressClient(addr)
-	process, err := newSubprocess(cmd, addr)
-	if err != nil {
-		return nil, errors.New("failed to start service")
+	service := &service{
+		addr:    addr,
+		client:  newIngressClient(addr),
+		process: newSubprocess(addr),
+		logger:  logger,
 	}
-	return &service{cmd, addr, client, process, logger}, nil
-}
-
-type Command struct {
-	Command string
-	Args    []string
+	return service
 }
 
 type service struct {
-	cmd     Command
 	addr    string
 	client  *ingressClient
 	process foldSubprocess
@@ -54,21 +70,15 @@ type service struct {
 }
 
 type foldSubprocess interface {
-	run() error
+	run(string, ...string) error
 	wait() error
 	kill() error
-	signal(sig os.Signal) error
-	setStdout(w io.Writer)
-	setStderr(w io.Writer)
+	signal(os.Signal) error
 }
 
-func (s *service) Start() error {
+func (s *service) Exec(cmd string, args ...string) error {
 	s.logger.Debugf("starting application subprocess")
-	// TODO startup the process, and then the client.
-	//  There is one challenge here, which is that until the server
-	//  boots up on the other side, the socket doesn't exist.
-	//  this obviously leads to the client failing miserably.
-	err := s.process.run()
+	err := s.process.run(cmd, args...)
 	if err != nil {
 		return err
 	}
@@ -80,7 +90,7 @@ func (s *service) Start() error {
 	return nil
 }
 
-func (s *service) Stop() error {
+func (s *service) Shutdown() error {
 	s.logger.Debugf("shutting down application subprocess")
 	os.Remove(s.addr)
 	return s.process.kill()
