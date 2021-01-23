@@ -2,6 +2,7 @@ package router
 
 import (
 	"bytes"
+	"fmt"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -58,6 +59,8 @@ func (fr *foldRouter) DoRequest(w http.ResponseWriter, r *http.Request) {
 
 func (fr *foldRouter) Configure(m *manifest.Manifest) {
 	router := httprouter.New()
+	router.NotFound = http.HandlerFunc(notFound)
+	router.MethodNotAllowed = http.HandlerFunc(notAllowed)
 	for _, route := range m.Routes {
 		router.Handle(
 			route.HttpMethod.String(),
@@ -112,4 +115,19 @@ func encodePathParams(params httprouter.Params) map[string]string {
 		result[param.Key] = param.Value
 	}
 	return result
+}
+
+func httpError(w http.ResponseWriter, code int, e string) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(code)
+	fmt.Fprintln(w, e)
+}
+
+func notFound(w http.ResponseWriter, r *http.Request) {
+	httpError(w, http.StatusNotFound, `{"title":"Resource not found."}`)
+}
+
+func notAllowed(w http.ResponseWriter, r *http.Request) {
+	httpError(w, http.StatusMethodNotAllowed, `{"title":"Method not allowed."}`)
 }
