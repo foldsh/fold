@@ -12,5 +12,11 @@ func main() {
 	if err != nil {
 		panic("failed to start logger")
 	}
-	runtime.HTTP(logger, os.Args[1], os.Args[2:]...)
+	env := os.Getenv("FOLD_ENV")
+	switch env {
+	case "LAMBDA":
+		runtime.Lambda(logger, os.Args[1], os.Args[2:]...)
+	default:
+		runtime.HTTP(logger, os.Args[1], os.Args[2:]...)
+	}
 }

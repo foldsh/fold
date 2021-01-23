@@ -102,7 +102,7 @@ func (s *service) DoRequest(req *Request) (*Response, error) {
 }
 
 func (s *service) GetManifest() (*manifest.Manifest, error) {
-	s.logger.Debugf("retrieving manifest")
+	s.logger.Debugf("loading application manifest")
 	return s.client.getManifest(context.Background())
 }
 

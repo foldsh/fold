@@ -1,7 +1,6 @@
 package router
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -9,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 	sv "github.com/foldsh/fold/runtime/supervisor"
@@ -197,11 +197,11 @@ func TestServeHTTP(t *testing.T) {
 			for _, r := range tc.requests {
 				t.Run(fmt.Sprintf("%s:%s", r.method, r.path), func(t *testing.T) {
 					status, body := req(logger, t, r.method, r.path)
-					if status != r.status {
-						t.Errorf("expected status of %d but found %d", r.status, status)
+					if status != r.expectedStatus {
+						t.Errorf("expected status of %d but found %d", r.expectedStatus, status)
 					}
 
-					if diff := cmp.Diff(r.body, unmarshal(t, body)); diff != "" {
+					if diff := cmp.Diff(r.expectedBody, testutils.UnmarshalJSON(t, body)); diff != "" {
 						t.Errorf("Body did not match expectation (-want +got):\n%s", diff)
 					}
 				})
@@ -211,10 +211,10 @@ func TestServeHTTP(t *testing.T) {
 }
 
 type testReq struct {
-	method string
-	path   string
-	status int
-	body   map[string]interface{}
+	method         string
+	path           string
+	expectedStatus int
+	expectedBody   map[string]interface{}
 }
 
 type mockSupervisor struct {
@@ -238,7 +238,7 @@ func (ms *mockSupervisor) DoRequest(req *sv.Request) (*sv.Response, error) {
 			body[key] = value
 		}
 	}
-	return &sv.Response{Status: 200, Body: marshal(ms.t, body)}, nil
+	return &sv.Response{Status: 200, Body: testutils.MarshalJSON(ms.t, body)}, nil
 }
 
 func mkmanifest(routes ...*manifest.Route) *manifest.Manifest {
@@ -273,21 +273,4 @@ func req(l logging.Logger, t *testing.T, method string, path string) (int, []byt
 		t.Fatalf("failed to read body: %v ", err)
 	}
 	return resp.StatusCode, body
-}
-
-func unmarshal(t *testing.T, b []byte) map[string]interface{} {
-	var j map[string]interface{}
-	err := json.Unmarshal(b, &j)
-	if err != nil {
-		t.Fatalf("failed to unmarshal json %+v", b)
-	}
-	return j
-}
-
-func marshal(t *testing.T, j map[string]interface{}) []byte {
-	b, err := json.Marshal(j)
-	if err != nil {
-		t.Fatalf("failed to marshal json %+v", j)
-	}
-	return b
 }
