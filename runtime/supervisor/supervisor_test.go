@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -46,7 +47,7 @@ func TestSupervisorIntegration(t *testing.T) {
 	if string(res.Body) != string(req.Body) {
 		t.Fatalf("Exepcted respond body to equal request body. Expected %v but found %v", req.Body, res.Body)
 	}
-	service.Shutdown()
+	service.Signal(syscall.SIGTERM)
 }
 
 func newTestSupervisor(t *testing.T) Supervisor {

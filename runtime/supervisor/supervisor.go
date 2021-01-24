@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"syscall"
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
@@ -45,10 +46,9 @@ type Response struct {
 
 type Supervisor interface {
 	Exec(string, ...string) error
-	Shutdown() error
 	DoRequest(*Request) (*Response, error)
 	GetManifest() (*manifest.Manifest, error)
-	Signal(os.Signal)
+	Signal(os.Signal) error
 }
 
 func NewSupervisor(logger logging.Logger) Supervisor {
@@ -90,12 +90,6 @@ func (s *service) Exec(cmd string, args ...string) error {
 	return nil
 }
 
-func (s *service) Shutdown() error {
-	s.logger.Debugf("shutting down application subprocess")
-	os.Remove(s.addr)
-	return s.process.kill()
-}
-
 func (s *service) DoRequest(req *Request) (*Response, error) {
 	s.logger.Debug("performing application request: ", req)
 	return s.client.doRequest(context.Background(), req)
@@ -106,5 +100,16 @@ func (s *service) GetManifest() (*manifest.Manifest, error) {
 	return s.client.getManifest(context.Background())
 }
 
-func (s *service) Signal(sig os.Signal) {
+func (s *service) Signal(sig os.Signal) error {
+	s.logger.Debug("supervisor received signal ", sig)
+	switch sig {
+	case syscall.SIGINT, syscall.SIGTERM:
+		s.logger.Debugf("shutting down application subprocess")
+		os.Remove(s.addr)
+		err := s.process.kill()
+		if err != nil {
+			return errors.New("supervisor failed to handle signal")
+		}
+	}
+	return nil
 }

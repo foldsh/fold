@@ -43,16 +43,6 @@ func (fr *foldRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (fr *foldRouter) DoRequest(w http.ResponseWriter, r *http.Request) {
-	// We will have to implement an appropriate response writer over in
-	// the lambda code which uses that interface to produce a response for
-	// the lambda proxy integration:
-	// {
-	//   "isBase64Encoded": False,
-	//   "statusCode": res.get("status"),
-	//   "headers": {},
-	//   "body": json.dumps(res),
-	// }
-	// Choosing to ignore the trailing slash redirect for now.
 	handle, ps, _ := fr.router.Lookup(r.Method, r.URL.Path)
 	handle(w, r, ps)
 }

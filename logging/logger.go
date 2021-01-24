@@ -39,20 +39,14 @@ const (
 )
 
 func NewLogger(level LogLevel, json bool) (Logger, error) {
-	var (
-		config zap.Config
-		logger *zap.Logger
-		err    error
-	)
+	var config zap.Config
 	if json == true {
 		config = zap.NewProductionConfig()
-		config.Level = zap.NewAtomicLevelAt(zapLevel(level))
-		logger, err = config.Build()
 	} else {
 		config = zap.NewDevelopmentConfig()
-		config.Level = zap.NewAtomicLevelAt(zapLevel(level))
-		logger, err = config.Build()
 	}
+	config.Level = zap.NewAtomicLevelAt(zapLevel(level))
+	logger, err := config.Build()
 	if err != nil {
 		return nil, errors.New("failed to create logger")
 	}
