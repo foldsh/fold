@@ -73,6 +73,19 @@ func (fr *foldRouter) Configure(m *manifest.Manifest) {
 
 func (fr *foldRouter) makeHandler(route *manifest.Route) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+		if r.Method == "PUT" || r.Method == "POST" {
+			isJSON := false
+			for _, c := range r.Header.Values("Content-Type") {
+				if c == "application/json" {
+					isJSON = true
+					break
+				}
+			}
+			if !isJSON {
+				unsupportedMediaType(w, r)
+				return
+			}
+		}
 		buf := new(bytes.Buffer)
 		buf.ReadFrom(r.Body)
 		req := sv.Request{
@@ -125,9 +138,13 @@ func httpError(w http.ResponseWriter, code int, e string) {
 }
 
 func notFound(w http.ResponseWriter, r *http.Request) {
-	httpError(w, http.StatusNotFound, `{"title":"Resource not found."}`)
+	httpError(w, http.StatusNotFound, `{"title":"Resource not found"}`)
 }
 
 func notAllowed(w http.ResponseWriter, r *http.Request) {
-	httpError(w, http.StatusMethodNotAllowed, `{"title":"Method not allowed."}`)
+	httpError(w, http.StatusMethodNotAllowed, `{"title":"Method not allowed"}`)
+}
+
+func unsupportedMediaType(w http.ResponseWriter, r *http.Request) {
+	httpError(w, http.StatusUnsupportedMediaType, `{"title":"Content-Type must be application/json"}`)
 }

@@ -18,8 +18,8 @@ const port = ":12345"
 
 func TestServeHTTP(t *testing.T) {
 	logger := logging.NewTestLogger()
-	methodNotAllowed := map[string]interface{}{"title": "Method not allowed."}
-	resourceNotFound := map[string]interface{}{"title": "Resource not found."}
+	methodNotAllowed := map[string]interface{}{"title": "Method not allowed"}
+	resourceNotFound := map[string]interface{}{"title": "Resource not found"}
 	cases := []struct {
 		name     string
 		manifest *manifest.Manifest
@@ -259,6 +259,9 @@ func mkroute(method, handler string, pathSpec string) *manifest.Route {
 func req(l logging.Logger, t *testing.T, method string, path string) (int, []byte) {
 	client := http.Client{}
 	request, err := http.NewRequest(method, fmt.Sprintf("http://localhost%s%s", port, path), nil)
+	if method == "PUT" || method == "POST" {
+		request.Header.Add("Content-Type", "application/json")
+	}
 	l.Debug("request", request)
 	if err != nil {
 		t.Fatalf("failed to create request: %v ", err)

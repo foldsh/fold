@@ -36,7 +36,7 @@ func (lh *lambdaHandler) Handle(
 		lh.logger.Errorf("failed to parse path: %s", e.Path)
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
-			Body:       `{"title":"Failed to parse path."}`,
+			Body:       `{"title":"Failed to parse path"}`,
 		}, err
 	}
 	req, err := http.NewRequest(e.HTTPMethod, url.String(), ioutil.NopCloser(strings.NewReader(e.Body)))
@@ -44,7 +44,7 @@ func (lh *lambdaHandler) Handle(
 		lh.logger.Errorf("failed to translate gateway request")
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
-			Body:       `{"title":"Failed to translate AWS APIGateway Request."}`,
+			Body:       `{"title":"Failed to translate AWS APIGateway Request"}`,
 		}, err
 	}
 	req.Header = e.MultiValueHeaders

@@ -8,14 +8,21 @@ import (
 )
 
 type Logger interface {
+	Panic(args ...interface{})
+	Panicf(format string, args ...interface{})
+
 	Fatal(args ...interface{})
 	Fatalf(format string, args ...interface{})
+
 	Error(args ...interface{})
 	Errorf(format string, args ...interface{})
+
 	Warn(args ...interface{})
 	Warnf(format string, args ...interface{})
+
 	Info(args ...interface{})
 	Infof(format string, args ...interface{})
+
 	Debug(args ...interface{})
 	Debugf(format string, args ...interface{})
 }
@@ -23,7 +30,8 @@ type Logger interface {
 type LogLevel int
 
 const (
-	Fatal LogLevel = iota
+	Panic LogLevel = iota
+	Fatal
 	Error
 	Warn
 	Info
@@ -53,6 +61,8 @@ func NewLogger(level LogLevel, json bool) (Logger, error) {
 
 func zapLevel(level LogLevel) zapcore.Level {
 	switch level {
+	case Panic:
+		return zapcore.PanicLevel
 	case Fatal:
 		return zapcore.FatalLevel
 	case Error:
