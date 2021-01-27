@@ -22,12 +22,12 @@ import (
 // run it in a goroutine.
 func TestSupervisorIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration test")
+		t.Skip("Skipping integration test")
 	}
 	service := newTestSupervisor(t)
 	err := service.Exec("test", "arg1", "arg2")
 	if err != nil {
-		t.Fatalf("failed to start service")
+		t.Fatalf("Failed to start service")
 	}
 
 	m, err := service.GetManifest()
@@ -52,9 +52,10 @@ func TestSupervisorIntegration(t *testing.T) {
 
 func newTestSupervisor(t *testing.T) Supervisor {
 	addr := newAddr()
-	client := newIngressClient(addr)
+	logger := logging.NewTestLogger()
+	client := newIngressClient(addr, logger)
 	process := &goSubprocess{newTestIngressServer(addr), t}
-	return &service{addr, client, process, logging.NewTestLogger()}
+	return &service{addr, client, process, logger}
 }
 
 // goroutine based implementation of the foldSubprocess

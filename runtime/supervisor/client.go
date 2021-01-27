@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 
+	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 	"github.com/foldsh/fold/runtime/supervisor/pb"
 )
@@ -20,12 +21,13 @@ type ingressClient struct {
 	foldSockAddr string
 	conn         *grpc.ClientConn
 	client       pb.FoldIngressClient
+	logger       logging.Logger
 }
 
 // Creates a new `IngressClient`. The `foldSockAddr` should be a complete
 // file path and it should match the one used to start the server.
-func newIngressClient(foldSockAddr string) *ingressClient {
-	return &ingressClient{foldSockAddr, nil, nil}
+func newIngressClient(foldSockAddr string, logger logging.Logger) *ingressClient {
+	return &ingressClient{foldSockAddr: foldSockAddr, logger: logger}
 }
 
 func dialer(addr string, timeout time.Duration) (net.Conn, error) {
@@ -39,22 +41,25 @@ func (ic *ingressClient) start() error {
 	// This takes around 2 to 4 ms usually, and the backoff config ensures
 	// that we return almost as soon as it's up. The default backoff
 	// config waits for a second, which is pointless for us.
+	ic.logger.Debugf("dialing server on %s", ic.foldSockAddr)
 	conn, err := grpc.Dial(
-		ic.foldSockAddr, grpc.WithInsecure(),
+		ic.foldSockAddr,
+		grpc.WithInsecure(),
+		grpc.WithAuthority("localhost"),
 		grpc.WithDialer(dialer),
 		grpc.WithBlock(),
 		grpc.WithConnectParams(grpc.ConnectParams{
 			backoff.Config{
 				500 * time.Microsecond,
-				1.6,
+				1.1,
 				0.2,
-				16 * time.Second,
+				4 * time.Second,
 			},
 			500 * time.Microsecond,
 		}),
 	)
 	if err != nil {
-		return fmt.Errorf("Failed to dial grpc server: %v", err)
+		return fmt.Errorf("failed to dial grpc server: %v", err)
 	}
 	ic.conn = conn
 	ic.client = pb.NewFoldIngressClient(conn)

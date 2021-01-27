@@ -1,0 +1,18 @@
+{
+  "name": "helloworld",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "source": true,
+  "scripts": {
+    "build": "pkg index.js  --target=node14-linux-x64 -o ./dist/app"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@foldsh/sdk": "0.0.7"
+  },
+  "devDependencies": {
+    "pkg": "^4.4.9"
+  }
+}

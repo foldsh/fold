@@ -46,6 +46,7 @@ func initRuntime(logger logging.Logger, command string, args ...string) *runtime
 	}
 	manifest, err := superv.GetManifest()
 	if err != nil {
+		logger.Debug("error", err)
 		logger.Fatalf("failed to fetch manifest")
 	}
 	router := router.NewRouter(logger, superv)

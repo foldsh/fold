@@ -55,7 +55,7 @@ func NewSupervisor(logger logging.Logger) Supervisor {
 	addr := newAddr()
 	service := &service{
 		addr:    addr,
-		client:  newIngressClient(addr),
+		client:  newIngressClient(addr, logger),
 		process: newSubprocess(addr),
 		logger:  logger,
 	}
