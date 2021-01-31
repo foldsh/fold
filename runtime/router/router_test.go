@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
@@ -200,10 +198,12 @@ func TestServeHTTP(t *testing.T) {
 					if status != r.expectedStatus {
 						t.Errorf("expected status of %d but found %d", r.expectedStatus, status)
 					}
-
-					if diff := cmp.Diff(r.expectedBody, testutils.UnmarshalJSON(t, body)); diff != "" {
-						t.Errorf("Body did not match expectation (-want +got):\n%s", diff)
-					}
+					testutils.Diff(
+						t,
+						r.expectedBody,
+						testutils.UnmarshalJSON(t, body),
+						"Body did not match expectation",
+					)
 				})
 			}
 		})

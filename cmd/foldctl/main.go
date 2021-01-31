@@ -1,7 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"github.com/foldsh/fold/cmd/foldctl/commands"
+)
 
 func main() {
-	fmt.Println("foldctl")
+	commands.Execute()
 }

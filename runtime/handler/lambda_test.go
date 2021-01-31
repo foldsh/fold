@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/google/go-cmp/cmp"
 
 	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/logging"
@@ -37,9 +36,7 @@ func TestLambdaHandler(t *testing.T) {
 		Body:              `{"method":"DELETE","path":"/foo/bar/baz"}`,
 	}
 
-	if diff := cmp.Diff(expectation, res); diff != "" {
-		t.Errorf("Body did not match expectation (-want +got):\n%s", diff)
-	}
+	testutils.Diff(t, expectation, res, "Body did not match expectation")
 }
 
 type mockHTTPDoer struct {
