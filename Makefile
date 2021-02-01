@@ -1,25 +1,55 @@
-build: protoc
-	mkdir -p bin
-	CGO_ENABLED=0 go build -o bin ./...
-.PHONY: build
+# The bin/$(1)/$(1) in the build commands looks odd, but it just makes it really easy
+# to get a very small build context for docker.
+define build-local
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/$(1)/$(1) ./cmd/$(1)
+endef
 
-install: protoc
-	mkdir -p bin
-	CGO_ENABLED=0 go install ./...
-.PHONY: build
+define build-image
+	docker build -t $(1) -f ./cmd/$(1)/images/Dockerfile ./bin/$(1)
+endef
 
-release: protoc
-	mkdir -p bin
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin ./...
-.PHONY: build
+define build-release
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin/$(1)/$(1) ./cmd/$(1)
+endef
 
-install: protoc
-	go install ./...
-.PHONY: install
+# FOLD GATEWAY
+foldgw: bin
+	$(call build-local,foldgw)
+.PHONY: foldgw
 
-images: protoc
-	docker build -t foldrt ./docker/Dockerfile
-.PHONY: docker
+foldgw-image: foldgw
+	$(call build-image,foldgw)
+.PHONY: foldgw-image
+
+foldgw-release: bin
+	$(call build-release,foldgw)
+.PHONY: foldgw
+
+# FOLD RUNTIME
+foldrt: bin
+	$(call build-local,foldrt)
+.PHONY: foldrt
+
+foldrt-image: foldrt
+	$(call build-image,foldrt)
+.PHONY: foldrt-image
+
+foldrt-release: bin
+	$(call build-release,foldrt)
+.PHONY: foldrt-image
+
+# FOLD CTL
+foldctl: bin
+	$(call build-local,foldctl)
+.PHONY: foldctl
+
+foldctl-image: foldctl
+	$(call build-image,foldctl)
+.PHONY: foldctl-image
+
+foldctl-release: bin
+	$(call build-release,foldctl)
+.PHONY: foldctl-release
 
 protoc:
 	protoc --proto_path=proto \
@@ -33,6 +63,9 @@ protoc:
 		--go_opt=paths=source_relative \
 		proto/manifest.proto
 .PHONY: protoc
+
+bin: ./bin
+	mkdir -p bin
 
 clean:
 	rm -rf bin

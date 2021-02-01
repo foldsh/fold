@@ -1,7 +1,10 @@
 package commands
 
 import (
+	"context"
 	"errors"
+	"os"
+	"os/signal"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -11,22 +14,34 @@ import (
 )
 
 var (
-	logger  logging.Logger
-	verbose bool
-	debug   bool
+	commandCtx context.Context
+	logger     logging.Logger
+	verbose    bool
+	debug      bool
+
+	rootCmd = &cobra.Command{
+		Use:   "foldctl",
+		Short: "Fold CLI",
+		Long:  "Fold CLI",
+		PersistentPostRun: func(_ *cobra.Command, _ []string) {
+			// All successful commands print 'ok' in green at the end.
+			print("%s", green("\nok"))
+		},
+	}
 )
-var rootCmd = &cobra.Command{
-	Use:   "foldctl",
-	Short: "Fold CLI",
-	Long:  "Fold CLI",
-	PersistentPostRun: func(_ *cobra.Command, _ []string) {
-		// All successful commands print 'ok' in green at the end.
-		print("%s", green("\nok"))
-	},
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		exitWithMessage("Failed to start foldctl.", thisIsABug)
+	}
 }
 
 func init() {
-	cobra.OnInitialize(initialise)
+	cobra.OnInitialize(func() {
+		setUpLogger()
+		setUpContext()
+		loadConfig()
+	})
 
 	// Verbose/Debug output
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
@@ -40,14 +55,7 @@ func init() {
 	exitIfError(err, "Failed to bind the specified access token.", thisIsABug)
 }
 
-func initialise() {
-	err := loadConfig()
-	exitIfError(
-		err,
-		"Failed to load foldctl's config ~/.fold/config.yaml.",
-		"Please ensure you have the relevant permissions to access files there.",
-	)
-
+func setUpLogger() {
 	var logLevel logging.LogLevel
 	if debug {
 		logLevel = logging.Debug
@@ -61,9 +69,36 @@ func initialise() {
 	logger = l
 }
 
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		exitWithMessage("Failed to start foldctl.", thisIsABug)
+func setUpContext() {
+	commandCtx = context.Background()
+	ctx, cancel := context.WithCancel(commandCtx)
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	defer func() {
+		signal.Stop(c)
+		cancel()
+	}()
+	go func() {
+		logger.Debugf("listening for SIGINT")
+		select {
+		case <-c:
+			print("Aborting!")
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+}
+
+func loadConfig() {
+	err := loadConfigAtPath(foldHome)
+	if err == nil {
+		return
+	} else if errors.Is(err, couldNotCreateDefaultConfig) {
+		exitWithMessage("Failed to create the default foldctl config. Check you have permissions to write to ~/.fold/config.yaml")
+	} else if errors.Is(err, couldNotReadConfigFile) {
+		exitWithMessage("Failed to read the foldctl config file at ~/.fold/config.yaml. Please ensure it is valid yaml.")
+	} else {
+		exitWithMessage("Failed to read the foldctl config file at ~/.fold/config.yaml. Please ensure it is valid yaml.")
 	}
 }
 

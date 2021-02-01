@@ -61,14 +61,14 @@ func TestConfigCreatedIfNotPresent(t *testing.T) {
 	}
 }
 
-func TestLoadFoldConfig(t *testing.T) {
+func TestMakeFoldConfig(t *testing.T) {
 	viper.Reset()
 	err := loadConfigAtPath("./testdata/")
 	if err != nil {
 		fmt.Printf("%+v", err)
 		t.Fatal("Failed to load config")
 	}
-	cfg, err := loadFoldConfig()
+	cfg, err := makeFoldConfig()
 	if err != nil {
 		fmt.Printf("%+v", err)
 		t.Fatal("Failed unmarshal config")

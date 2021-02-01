@@ -47,22 +47,33 @@ The templates are all availble at https://github.com/foldsh/templates.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO it might be nice to move this to the prompt rather than having so many args.
 		// TODO we probably want to remove the path flag actually and just always use '.' after validating we're in a fold project root.
-		// TODO validate the service name. ^[a-z-_]+$
 		var (
 			template = args[0]
 			language = args[1]
 			name     = args[2]
 		)
 		p := loadProject()
-
-		// Update templates repoistory and validate template
-		templatesPath := updateTemplates()
-		selectedTemplate := validateTemplate(templatesPath, template, language)
-
 		// Build the absolute path to the new service.
 		servicePath = filepath.Join(servicePath, name)
 		absPath, err := filepath.Abs(servicePath)
 		exitIfError(err, servicePathInvalid)
+
+		// Validate the service name
+		service := project.Service{
+			Name: name,
+			Path: servicePath,
+		}
+		if !service.Validate() {
+			msg := fmt.Sprintf(
+				"The service name is invalid, please ensure it matches the regex %s",
+				project.ServiceNameRegex,
+			)
+			exitWithMessage(msg)
+		}
+
+		// Update templates repoistory and validate template
+		updateTemplates()
+		selectedTemplate := validateTemplate(template, language)
 
 		// Check if the directory is empty
 		empty, err := fs.IsEmpty(absPath)
@@ -85,31 +96,23 @@ The templates are all availble at https://github.com/foldsh/templates.`,
 		}
 
 		// Update the project config
-		p.AddService(project.Service{
-			Name: name,
-			Path: servicePath,
-		})
+		p.AddService(service)
 		saveProjectConfig(p)
 	},
 }
 
-func updateTemplates() string {
+func updateTemplates() {
 	// Get or update the templates.
 	print("Updating the templates repository...")
-	home, err := fs.FoldHome()
-	exitIfError(err, `Failed to locate the fold home directory. It should be located at ~/.fold.
-Ensure you have the relevant permissions to create files and directories at that location.`)
-	templatesPath := filepath.Join(home, "templates")
 	out := newStreamLinePrefixer(serr, blue("git: "))
-	err = git.UpdateTemplates(out, templatesPath)
+	err := git.UpdateTemplates(out, foldTemplates)
 	exitIfError(err, `Failed to update the template repository.
 Please ensure you are connected to the internet and that you are able to access github.com`)
-	return templatesPath
 }
 
-func validateTemplate(templatesPath, template, language string) string {
+func validateTemplate(template, language string) string {
 	// Check that the specified template is valid.
-	selectedTemplate := filepath.Join(templatesPath, template, language)
+	selectedTemplate := filepath.Join(foldTemplates, template, language)
 	logger.Debugf("inferred template is %s, checking if it is valid", selectedTemplate)
 	stat, err := os.Stat(selectedTemplate)
 	logger.Debugf("stat for inferred template path %v", stat)

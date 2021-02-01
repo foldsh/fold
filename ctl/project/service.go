@@ -4,7 +4,10 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"path/filepath"
+	"regexp"
 )
+
+var ServiceNameRegex = `^[a-z][a-z-_]+$`
 
 type Service struct {
 	Name   string   `mapstructure:"name"`
@@ -12,6 +15,11 @@ type Service struct {
 	Mounts []string `mapstructure:"mounts"`
 
 	project *Project
+}
+
+func (s *Service) Validate() bool {
+	matched, _ := regexp.MatchString(ServiceNameRegex, s.Name)
+	return matched
 }
 
 func (s *Service) Id() string {

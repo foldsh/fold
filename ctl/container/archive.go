@@ -1,4 +1,4 @@
-package build
+package container
 
 import "github.com/docker/docker/pkg/archive"
 

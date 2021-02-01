@@ -1,5 +1,5 @@
-// Package build contains utilities for building image from services.
-package build
+// Package container contains utilities for building image from services.
+package container
 
 import (
 	"context"

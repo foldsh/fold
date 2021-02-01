@@ -1,10 +1,9 @@
 package commands
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/foldsh/fold/ctl/build"
+	"github.com/foldsh/fold/ctl/container"
 	"github.com/spf13/cobra"
 )
 
@@ -50,13 +49,13 @@ will be extracted from the service manifest, and will match the service path on 
 		logger.Debugf("absolute path to service inferred as %s", absPath)
 		tag := fmt.Sprintf("foldlocal/%s/%s", service.Id(), service.Name)
 		print("Preparing to build service %s with tag %s", service.Name, tag)
-		buildSpec := &build.BuildSpec{
+		buildSpec := &container.BuildSpec{
 			Src:    absPath,
 			Image:  tag,
 			Logger: logger,
 			Out:    newStreamLinePrefixer(serr, blue("docker: ")),
 		}
-		err = build.Build(context.Background(), buildSpec)
+		err = container.Build(commandCtx, buildSpec)
 		exitIfError(
 			err,
 			"Failed to build the service.",

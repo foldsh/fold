@@ -13,3 +13,11 @@ func FoldHome() (string, error) {
 	}
 	return filepath.Join(home, ".fold"), nil
 }
+
+func FoldTemplates(foldHome string) string {
+	return filepath.Join(foldHome, "templates")
+}
+
+func FoldBin(foldHome string) string {
+	return filepath.Join(foldHome, "bin")
+}

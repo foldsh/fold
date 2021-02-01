@@ -13,18 +13,21 @@ import (
 	"github.com/foldsh/fold/ctl/fs"
 )
 
-var foldHome string
+var (
+	foldHome      string
+	foldBin       string
+	foldTemplates string
+
+	couldNotCreateDefaultConfig = errors.New("failed to create the default foldctl config file")
+	couldNotReadConfigFile      = errors.New("failed to read the foldctl config file")
+)
 
 func init() {
 	home, err := fs.FoldHome()
-	if err != nil {
-		panic(errors.New("failed to locate home directory"))
-	}
+	exitIfError(err, "Failed to locate fold home directory at ~/.fold.")
 	foldHome = home
-}
-
-func loadConfig() error {
-	return loadConfigAtPath(foldHome)
+	foldBin = fs.FoldBin(foldHome)
+	foldTemplates = fs.FoldTemplates(foldHome)
 }
 
 func loadConfigAtPath(path string) error {
@@ -46,20 +49,20 @@ func loadConfigAtPath(path string) error {
 			err = writeDefaultConfig(path)
 			if err != nil {
 				// Creating the config failed, so we bail and return an error.
-				return errors.New("failed to create the default foldctl config file")
+				return couldNotCreateDefaultConfig
 			}
 			// We successfully wrote the default config, so lets try to load it.
 			continue
 		} else {
 			// There was some other error, likely the config file was malformed.
 			// Bail and return the error.
-			return errors.New("failed to read the foldctl config file")
+			return couldNotReadConfigFile
 		}
 	}
 	return nil
 }
 
-func loadFoldConfig() (ctl.Config, error) {
+func makeFoldConfig() (ctl.Config, error) {
 	var cfg ctl.Config
 	err := viper.Unmarshal(&cfg)
 	if err != nil {
