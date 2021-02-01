@@ -1,3 +1,0 @@
-package container
-
-func Run() {}

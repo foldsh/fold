@@ -17,25 +17,25 @@ foldgw: bin
 	$(call build-local,foldgw)
 .PHONY: foldgw
 
-foldgw-image: foldgw
-	$(call build-image,foldgw)
-.PHONY: foldgw-image
-
 foldgw-release: bin
 	$(call build-release,foldgw)
 .PHONY: foldgw
+
+foldgw-image: foldgw-release
+	$(call build-image,foldgw)
+.PHONY: foldgw-image
 
 # FOLD RUNTIME
 foldrt: bin
 	$(call build-local,foldrt)
 .PHONY: foldrt
 
-foldrt-image: foldrt
-	$(call build-image,foldrt)
-.PHONY: foldrt-image
-
 foldrt-release: bin
 	$(call build-release,foldrt)
+.PHONY: foldrt-image
+
+foldrt-image: foldrt-release
+	$(call build-image,foldrt)
 .PHONY: foldrt-image
 
 # FOLD CTL
@@ -43,13 +43,13 @@ foldctl: bin
 	$(call build-local,foldctl)
 .PHONY: foldctl
 
-foldctl-image: foldctl
-	$(call build-image,foldctl)
-.PHONY: foldctl-image
-
 foldctl-release: bin
 	$(call build-release,foldctl)
 .PHONY: foldctl-release
+
+foldctl-image: foldctl-release
+	$(call build-image,foldctl)
+.PHONY: foldctl-image
 
 protoc:
 	protoc --proto_path=proto \

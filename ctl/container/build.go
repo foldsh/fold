@@ -3,7 +3,6 @@ package container
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,13 +11,6 @@ import (
 	"strings"
 
 	"github.com/foldsh/fold/logging"
-)
-
-var (
-	FailedToConnectToDockerEngineError      = errors.New("failed to connect to docker engine")
-	FailedToDetermineDockerEngineAPIVersion = errors.New("failed to set the docker engine API version")
-	FailedToPrepareBuildArchive             = errors.New("failed to prepare the build archive")
-	FailedToBuildImage                      = errors.New("failed to build the image")
 )
 
 type BuildSpec struct {
