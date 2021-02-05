@@ -64,6 +64,11 @@ protoc:
 		proto/manifest.proto
 .PHONY: protoc
 
+genmocks:
+	mockgen -source=ctl/container/docker_client.go \
+		-destination=ctl/container/mock_docker_client.go \
+		-package container
+
 bin: ./bin
 	mkdir -p bin
 

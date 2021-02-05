@@ -1,9 +1,6 @@
 package commands
 
 import (
-	"fmt"
-
-	"github.com/foldsh/fold/ctl/container"
 	"github.com/spf13/cobra"
 )
 
@@ -36,30 +33,7 @@ will be extracted from the service manifest, and will match the service path on 
 	Run: func(cmd *cobra.Command, args []string) {
 		path := args[0]
 		p := loadProject()
-		service, err := p.GetService(path)
-		exitIfError(
-			err,
-			fmt.Sprintf("The path %s is not a registered service.", path),
-			"Please check the path you typed or, if this is a mistake, make sure that the service",
-			"is registered in your fold.yaml file.",
-		)
-		// absPath, err := filepath.Abs(service.Path)
-		absPath, err := service.AbsPath()
-		exitIfError(err, servicePathInvalid)
-		logger.Debugf("absolute path to service inferred as %s", absPath)
-		tag := fmt.Sprintf("foldlocal/%s/%s", service.Id(), service.Name)
-		print("Preparing to build service %s with tag %s", service.Name, tag)
-		buildSpec := &container.BuildSpec{
-			Src:    absPath,
-			Image:  tag,
-			Logger: logger,
-			Out:    newStreamLinePrefixer(serr, blue("docker: ")),
-		}
-		err = container.Build(commandCtx, buildSpec)
-		exitIfError(
-			err,
-			"Failed to build the service.",
-			"Check the build logs above for more information on why this happened.",
-		)
+		service := getService(p, path)
+		buildService(service)
 	},
 }

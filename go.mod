@@ -13,15 +13,16 @@ require (
 	github.com/fatih/color v1.7.0
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-git/go-git/v5 v5.2.0
+	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-cmp v0.5.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/manifoldco/promptui v0.8.0
 	github.com/moby/sys/mount v0.2.0 // indirect
-	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635 // indirect
+	github.com/moby/term v0.0.0-20201216013528-df9cb8a40635
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
-	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/opencontainers/image-spec v1.0.1
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/cobra v1.1.1

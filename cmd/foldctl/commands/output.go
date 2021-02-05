@@ -22,6 +22,7 @@ var (
 	checkPermissions   = "Please ensure that you have the relevant permissions to create files and directories there."
 	servicePathInvalid = `The path you have specified is not a valid service.
 Please check that it is a valid absolute or relative path to a fold service.`
+	cantReachDocker = "Failed to contact the docker daemon. Please ensure it is running."
 )
 
 func print(f string, args ...interface{}) {
@@ -34,6 +35,7 @@ func printErr(f string, args ...interface{}) {
 
 func exitIfError(err error, lines ...string) {
 	if err != nil {
+		logger.Debugf("Exiting with error: %v", err)
 		exitWithMessage(lines...)
 	}
 }

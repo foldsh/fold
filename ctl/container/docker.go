@@ -1,157 +1,123 @@
 package container
 
 import (
-	"context"
-	"io"
-	"os"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/archive"
-	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/docker/docker/pkg/term"
 	"github.com/foldsh/fold/logging"
 )
 
-type dockerClient struct {
-	cli    *client.Client
-	ctx    context.Context
-	logger logging.Logger
-	out    io.Writer
-}
-
-func newDockerClient(ctx context.Context, logger logging.Logger, out io.Writer) (*dockerClient, error) {
-	apiVersion, err := determineDockerAPIVersion(ctx, logger)
-	if err != nil {
-		return nil, err
-	}
-	err = os.Setenv("DOCKER_API_VERSION", apiVersion)
-	if err != nil {
-		return nil, FailedToDetermineDockerEngineAPIVersion
-	}
-	client, err := client.NewEnvClient()
+func NewDockerClient(logger logging.Logger) (DockerClient, error) {
+	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		logger.Debugf("failed to initialised docker client")
 		return nil, FailedToConnectToDockerEngineError
 	}
-	return &dockerClient{
-		cli:    client,
-		ctx:    ctx,
-		logger: logger,
-		out:    out,
-	}, nil
+	return client, nil
 }
 
-// In order to support a wide range of versions of the docker engine, we need to find
-// out what version of the API the current engine supports. The only way to do this is to
-// create a client, ping the engine, and extract the APIVersion from the response.
-// It means we end up creating a client and throwing it away just for this but oh well.
-func determineDockerAPIVersion(ctx context.Context, logger logging.Logger) (string, error) {
-	logger.Debugf("determining supported docker engine api version")
-	client, err := client.NewEnvClient()
-	if err != nil {
-		logger.Debugf("failed to initialised docker client: %v", err)
-		return "", FailedToConnectToDockerEngineError
-	}
-	ping, err := client.Ping(ctx)
-	if err != nil {
-		logger.Debugf("failed to ping docker client: %v", err)
-		return "", FailedToConnectToDockerEngineError
-	}
-	version := ping.APIVersion
-	if version == "" {
-		logger.Debugf("failed to determine supported docker engine api version")
-		return "", FailedToConnectToDockerEngineError
-	}
-	logger.Debugf("determined supported docker engine api version to be %s", version)
-	return version, nil
-}
-
-func (dc *dockerClient) buildImage(image string, archive *archive.TempArchive) error {
-	dc.logger.Debugf("building image")
-	opts := types.ImageBuildOptions{
-		Tags: []string{image},
-	}
-
-	resp, err := dc.cli.ImageBuild(dc.ctx, archive.File, opts)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	termFd, isTerm := term.GetFdInfo(os.Stderr)
-
-	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, dc.out, termFd, isTerm, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (dc *dockerClient) createNetwork(ctx context.Context, net *Network) error {
-	networkRes, err := dc.cli.NetworkCreate(ctx, net.Name, types.NetworkCreate{})
+func (cr *containerRuntime) createNetwork(net *Network) error {
+	networkRes, err := cr.cli.NetworkCreate(cr.ctx, net.Name, types.NetworkCreate{})
 	if err != nil {
 		return FailedToCreateNetwork
 	}
-	net.id = networkRes.ID
+	net.ID = networkRes.ID
 	return nil
 }
 
-func (dc *dockerClient) destroyNetwork(ctx context.Context, net *Network) error {
-	err := dc.cli.NetworkRemove(ctx, net.id)
+func (cr *containerRuntime) removeNetwork(net *Network) error {
+	err := cr.cli.NetworkRemove(cr.ctx, net.ID)
 	if err != nil {
 		return FailedToDestroyNetwork
 	}
 	return nil
 }
 
-func (dc *dockerClient) addToNetwork(
-	ctx context.Context, n *Network, con *Container,
-) error {
-	err := dc.cli.NetworkConnect(ctx, n.id, con.id, &network.EndpointSettings{})
+func (cr *containerRuntime) addToNetwork(n *Network, con *Container) error {
+	err := cr.cli.NetworkConnect(cr.ctx, n.ID, con.ID, &network.EndpointSettings{})
 	if err != nil {
 		return FailedToJoinNetwork
 	}
 	return nil
 }
 
-func (dc *dockerClient) removeFromNetwork(
-	ctx context.Context, net *Network, con *Container,
-) error {
-	err := dc.cli.NetworkDisconnect(ctx, net.id, con.id, false)
+func (cr *containerRuntime) removeFromNetwork(net *Network, con *Container) error {
+	err := cr.cli.NetworkDisconnect(cr.ctx, net.ID, con.ID, false)
 	if err != nil {
 		return FailedToLeaveNetwork
 	}
 	return nil
 }
 
-func (dc *dockerClient) pullImage(ctx context.Context, image string) error {
+func (cr *containerRuntime) pullImage(image string) error {
 	// TODO returns a ReadCloser - pipe this through to the cli perhaps?
-	_, err := dc.cli.ImagePull(ctx, image, types.ImagePullOptions{})
+	_, err := cr.cli.ImagePull(cr.ctx, image, types.ImagePullOptions{})
 	if err != nil {
 		return FailedToPullImage
 	}
 	return nil
 }
 
-func (dc *dockerClient) runContainer(ctx context.Context, con *Container) error {
-	resp, err := dc.cli.ContainerCreate(ctx, &container.Config{
+func (cr *containerRuntime) runContainer(con *Container) error {
+	resp, err := cr.cli.ContainerCreate(cr.ctx, &container.Config{
 		Image: con.Image,
 	}, nil, nil, nil, con.Name)
 	if err != nil {
+		cr.logger.Debugf("Failed to create container: %v", err)
 		return FailedToCreateContainer
 	}
 
-	if err := dc.cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+	if err := cr.cli.ContainerStart(cr.ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
 		return FailedToStartContainer
+	}
+	con.ID = resp.ID
+	return nil
+}
+
+func (cr *containerRuntime) stopContainer(con *Container) error {
+	if err := cr.cli.ContainerStop(cr.ctx, con.ID, nil); err != nil {
+		return FailedToStopContainer
 	}
 	return nil
 }
 
-func (dc *dockerClient) stopContainer(ctx context.Context, con *Container) error {
-	// TODO get the container ID for the passed name
-	if err := dc.cli.ContainerStop(ctx, con.id, nil); err != nil {
-		return FailedToStopContainer
+func (cr *containerRuntime) removeContainer(con *Container) error {
+	if err := cr.cli.ContainerRemove(cr.ctx, con.ID, types.ContainerRemoveOptions{}); err != nil {
+		return FailedToRemoveContainer
 	}
 	return nil
+}
+
+func (cr *containerRuntime) listContainers() ([]*Container, error) {
+	containers, err := cr.cli.ContainerList(cr.ctx, types.ContainerListOptions{})
+	if err != nil {
+		return nil, DockerEngineError
+	}
+	var foldContainers []*Container
+	for _, c := range containers {
+		cr.logger.Debugf("Examining container %s with names %v", c.ID, c.Names)
+		for _, name := range c.Names {
+			// Internally, docker represents container names with a leading slash, so we remove that
+			// to make sure we spot the fold containers. It does this because it means that the
+			// container is running on the local engine.
+			_, i := utf8.DecodeRuneInString(name)
+			name := name[i:]
+			if strings.HasPrefix(name, foldPrefix) {
+				cr.logger.Debugf("Identified container with name %s as fold container", name)
+				var volumes []Volume
+				for _, mp := range c.Mounts {
+					volumes = append(volumes, Volume{mp.Source, mp.Destination})
+				}
+				foldContainers = append(
+					foldContainers,
+					&Container{ID: c.ID, Name: name, Image: c.Image, Volumes: volumes, rt: cr},
+				)
+			}
+		}
+	}
+	return foldContainers, nil
 }

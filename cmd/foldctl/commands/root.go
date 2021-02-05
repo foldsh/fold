@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/foldsh/fold/ctl/project"
 	"github.com/foldsh/fold/logging"
 )
 
@@ -32,7 +31,9 @@ var (
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
-		exitWithMessage("Failed to start foldctl.", thisIsABug)
+		// TODO could be good to look at error types and choose behaviour
+		// based on that.
+		os.Exit(1)
 	}
 }
 
@@ -100,33 +101,4 @@ func loadConfig() {
 	} else {
 		exitWithMessage("Failed to read the foldctl config file at ~/.fold/config.yaml. Please ensure it is valid yaml.")
 	}
-}
-
-func loadProject() *project.Project {
-	p, err := project.Load(logger)
-	if err != nil {
-		if errors.Is(err, project.NotAFoldProject) {
-			exitWithMessage(
-				"This is not a fold project root.",
-				"Please either initialise a project or cd to a project root.",
-			)
-		} else if errors.Is(err, project.InvalidConfig) {
-			exitWithMessage(
-				"Fold config is invalid.",
-				"Please check that the yaml is valid and that you have spelled all the keys correctly.",
-			)
-		} else {
-			exitWithMessage("Failed to load fold config. Please ensure you're in a fold project root.")
-		}
-	}
-	return p
-}
-
-func saveProjectConfig(p *project.Project) {
-	err := p.SaveConfig()
-	exitIfError(
-		err,
-		"Failed to save fold config.",
-		"Please check you have permission to write files in this directory.",
-	)
 }
