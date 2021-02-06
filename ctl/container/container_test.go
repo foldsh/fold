@@ -24,9 +24,8 @@ func TestContainerStartAndStop(t *testing.T) {
 	rt := mockRuntime(dc)
 	con := &Container{
 		Name:    "test",
-		Image:   "fold/test",
-		Volumes: []Volume{{"foo", "bar"}},
-		rt:      rt,
+		Image:   Image{Name: "fold/test"},
+		Mounts: []Mount{{"foo", "bar"}},
 	}
 
 	dc.
@@ -38,14 +37,14 @@ func TestContainerStartAndStop(t *testing.T) {
 	dc.
 		EXPECT().
 		ContainerStart(any, "testContainerID", any)
-	con.Start()
+	rt.RunContainer(con)
 	if con.ID != "testContainerID" {
 		t.Errorf("Expected container ID to be set after start")
 	}
 	dc.
 		EXPECT().
 		ContainerStop(any, "testContainerID", any)
-	con.Stop()
+	rt.StopContainer(con)
 }
 
 func TestContainerStartAndStopFailure(t *testing.T) {
@@ -55,16 +54,15 @@ func TestContainerStartAndStopFailure(t *testing.T) {
 	rt := mockRuntime(dc)
 	con := &Container{
 		Name:    "test",
-		Image:   "fold/test",
-		Volumes: []Volume{{"foo", "bar"}},
-		rt:      rt,
+		Image:   Image{Name: "fold/test"},
+		Mounts: []Mount{{"foo", "bar"}},
 	}
 
 	dc.
 		EXPECT().
 		ContainerCreate(any, any, any, any, any, any).
 		Return(container.ContainerCreateCreatedBody{}, errors.New("an error"))
-	err := con.Start()
+	err := rt.RunContainer(con)
 	if !errors.Is(err, FailedToCreateContainer) {
 		t.Errorf("Expected FailedToCreateContainer but found %v", err)
 	}
@@ -76,7 +74,7 @@ func TestContainerStartAndStopFailure(t *testing.T) {
 		EXPECT().
 		ContainerStart(any, any, any).
 		Return(errors.New("an error"))
-	err = con.Start()
+	err = rt.RunContainer(con)
 	if !errors.Is(err, FailedToStartContainer) {
 		t.Errorf("Expected FailedToStartContainer but found %v", err)
 	}
@@ -84,7 +82,7 @@ func TestContainerStartAndStopFailure(t *testing.T) {
 		EXPECT().
 		ContainerStop(any, any, any).
 		Return(errors.New("an error"))
-	err = con.Stop()
+	err = rt.StopContainer(con)
 	if !errors.Is(err, FailedToStopContainer) {
 		t.Errorf("Expected FailedToStopContainer but found %v", err)
 	}
@@ -98,15 +96,14 @@ func TestContainerRemove(t *testing.T) {
 	con := &Container{
 		ID:      "testContainerID",
 		Name:    "test",
-		Image:   "fold/test",
-		Volumes: []Volume{{"foo", "bar"}},
-		rt:      rt,
+		Image:   Image{Name: "fold/test"},
+		Mounts: []Mount{{"foo", "bar"}},
 	}
 
 	dc.
 		EXPECT().
 		ContainerRemove(any, "testContainerID", any)
-	err := con.Remove()
+	err := rt.RemoveContainer(con)
 	if err != nil {
 		t.Errorf("Expected error to be nil but found %v", err)
 	}
@@ -120,16 +117,15 @@ func TestContainerRemoveFailure(t *testing.T) {
 	con := &Container{
 		ID:      "testContainerID",
 		Name:    "test",
-		Image:   "fold/test",
-		Volumes: []Volume{{"foo", "bar"}},
-		rt:      rt,
+		Image:   Image{Name: "fold/test"},
+		Mounts: []Mount{{"foo", "bar"}},
 	}
 
 	dc.
 		EXPECT().
 		ContainerRemove(any, "testContainerID", any).
 		Return(errors.New("an error"))
-	err := con.Remove()
+	err := rt.RemoveContainer(con)
 	if !errors.Is(err, FailedToRemoveContainer) {
 		t.Errorf("Expected FailedToRemoveContainer but found %v", err)
 	}
@@ -140,25 +136,24 @@ func TestContainerJoinAndLeaveNetwork(t *testing.T) {
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
 	rt := mockRuntime(dc)
-	net := &Network{Name: "testNet", ID: "testNetID", rt: rt}
+	net := &Network{Name: "testNet", ID: "testNetID"}
 	con := &Container{
 		Name:    "testCon",
 		ID:      "testConID",
-		Image:   "fold/test",
-		Volumes: []Volume{{"foo", "bar"}},
-		rt:      rt,
+		Image:   Image{Name: "fold/test"},
+		Mounts: []Mount{{"foo", "bar"}},
 	}
 
 	// Happy
 	dc.
 		EXPECT().
 		NetworkConnect(any, "testNetID", "testConID", any)
-	con.JoinNetwork(net)
+	rt.AddToNetwork(net, con)
 
 	dc.
 		EXPECT().
 		NetworkDisconnect(any, "testNetID", "testConID", false)
-	con.LeaveNetwork(net)
+	rt.RemoveFromNetwork(net, con)
 }
 
 func TestContainerJoinAndLeaveNetworkFailure(t *testing.T) {
@@ -166,20 +161,19 @@ func TestContainerJoinAndLeaveNetworkFailure(t *testing.T) {
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
 	rt := mockRuntime(dc)
-	net := &Network{Name: "testNet", ID: "testNetID", rt: rt}
+	net := &Network{Name: "testNet", ID: "testNetID"}
 	con := &Container{
 		Name:    "testCon",
 		ID:      "testConID",
-		Image:   "fold/test",
-		Volumes: []Volume{{"foo", "bar"}},
-		rt:      rt,
+		Image:   Image{Name: "fold/test"},
+		Mounts: []Mount{{"foo", "bar"}},
 	}
 
 	dc.
 		EXPECT().
 		NetworkConnect(any, "testNetID", "testConID", any).
 		Return(errors.New("an error"))
-	err := con.JoinNetwork(net)
+	err := rt.AddToNetwork(net, con)
 	if !errors.Is(err, FailedToJoinNetwork) {
 		t.Errorf("Expected FailedToJoinNetwork but got %v", err)
 	}
@@ -188,7 +182,7 @@ func TestContainerJoinAndLeaveNetworkFailure(t *testing.T) {
 		EXPECT().
 		NetworkDisconnect(any, "testNetID", "testConID", false).
 		Return(errors.New("an error"))
-	err = con.LeaveNetwork(net)
+	err = rt.RemoveFromNetwork(net, con)
 	if !errors.Is(err, FailedToLeaveNetwork) {
 		t.Errorf("Expected FailedToLeaveNetwork but got %v", err)
 	}
@@ -216,9 +210,24 @@ func TestListAllFoldContainers(t *testing.T) {
 		t.Errorf("Expected nil but foudn %v", err)
 	}
 	expectation := []*Container{
-		{ID: "b", Name: "fold.foo", Image: "test", Volumes: []Volume{Volume{"src", "dst"}}},
-		{ID: "c", Name: "fold.bar", Image: "test", Volumes: []Volume{Volume{"src", "dst"}}},
-		{ID: "d", Name: "fold.baz", Image: "test", Volumes: []Volume{Volume{"src", "dst"}}},
+		{
+			ID:      "b",
+			Name:    "fold.foo",
+			Image:   Image{Name: "test"},
+			Mounts: []Mount{Mount{"src", "dst"}},
+		},
+		{
+			ID:      "c",
+			Name:    "fold.bar",
+			Image:   Image{Name: "test"},
+			Mounts: []Mount{Mount{"src", "dst"}},
+		},
+		{
+			ID:      "d",
+			Name:    "fold.baz",
+			Image:   Image{Name: "test"},
+			Mounts: []Mount{Mount{"src", "dst"}},
+		},
 	}
 	diffContainers(t, expectation, cs)
 }
@@ -262,13 +271,13 @@ func TestGetContainer(t *testing.T) {
 		t.Errorf("Expected nil but foudn %v", err)
 	}
 	expectation := &Container{
-		ID: "b", Name: "fold.foo", Image: "test", Volumes: []Volume{Volume{"src", "dst"}},
+		ID: "b", Name: "fold.foo", Image: Image{Name: "test"}, Mounts: []Mount{Mount{"src", "dst"}},
 	}
 	diffContainers(t, expectation, c)
 }
 
-func mockRuntime(dc DockerClient) *containerRuntime {
-	return &containerRuntime{
+func mockRuntime(dc DockerClient) *ContainerRuntime {
+	return &ContainerRuntime{
 		cli:    dc,
 		ctx:    context.Background(),
 		logger: logging.NewTestLogger(),

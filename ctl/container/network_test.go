@@ -12,8 +12,8 @@ func TestNetworkCreateAndDestroy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	dcw := mockRuntime(dc)
-	net := &Network{Name: "test", rt: dcw}
+	rt := mockRuntime(dc)
+	net := &Network{Name: "test"}
 
 	dc.
 		EXPECT().
@@ -26,7 +26,7 @@ func TestNetworkCreateAndDestroy(t *testing.T) {
 		EXPECT().
 		NetworkCreate(any, "test", any).
 		Return(types.NetworkCreateResponse{ID: "testNetID"}, nil)
-	net.CreateIfNotExists()
+	rt.CreateNetworkIfNotExists(net)
 	if net.ID != "testNetID" {
 		t.Errorf("After creating expected ID to be 'testNetID' but found %s", net.ID)
 	}
@@ -40,15 +40,15 @@ func TestNetworkCreateAndDestroy(t *testing.T) {
 			{Name: "test", ID: "testNetID"},
 		}, nil)
 	dc.EXPECT().NetworkRemove(any, "testNetID")
-	net.RemoveIfExists()
+	rt.RemoveNetworkIfExists(net)
 }
 
 func TestNetworkCreateFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	dcw := mockRuntime(dc)
-	net := &Network{Name: "test", rt: dcw}
+	rt := mockRuntime(dc)
+	net := &Network{Name: "test"}
 	dc.
 		EXPECT().
 		NetworkList(any, any).
@@ -60,7 +60,7 @@ func TestNetworkCreateFailure(t *testing.T) {
 		EXPECT().
 		NetworkCreate(any, "test", any).
 		Return(types.NetworkCreateResponse{}, errors.New("something went wrong"))
-	err := net.CreateIfNotExists()
+	err := rt.CreateNetworkIfNotExists(net)
 	if !errors.Is(err, FailedToCreateNetwork) {
 		t.Errorf("Expected FailedToCreateNetwork error but found %v", err)
 	}
@@ -70,8 +70,8 @@ func TestNetworkThatExistsShouldNotBeRecreated(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	dcw := mockRuntime(dc)
-	net := &Network{Name: "test", rt: dcw}
+	rt := mockRuntime(dc)
+	net := &Network{Name: "test"}
 	dc.
 		EXPECT().
 		NetworkList(any, any).
@@ -80,7 +80,7 @@ func TestNetworkThatExistsShouldNotBeRecreated(t *testing.T) {
 			{Name: "foo", ID: "fooID"},
 			{Name: "bar", ID: "barID"},
 		}, nil)
-	err := net.CreateIfNotExists()
+	err := rt.CreateNetworkIfNotExists(net)
 	if err != nil {
 		t.Errorf("Expected nil but found %v", err)
 	}

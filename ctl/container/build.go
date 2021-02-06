@@ -11,50 +11,78 @@ import (
 	"strings"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/foldsh/fold/logging"
 	"github.com/moby/term"
 )
 
-type ImageSpec struct {
-	Src          string
-	Name         string
-	Logger       logging.Logger
-	Out          io.Writer
-	DockerClient DockerClient
-
-	workDir string
+type Image struct {
+	Src  string
+	Name string
 }
 
-func (spec *ImageSpec) Build(ctx context.Context) error {
+type ImageBuilder interface {
+	Build(spec Image) error
+}
+
+func NewImageBuilder(
+	ctx context.Context, logger logging.Logger, out io.Writer,
+) (ImageBuilder, error) {
+	client, err := newDockerClient(logger)
+	if err != nil {
+		return nil, err
+	}
+	return &imageBuilder{client, ctx, logger, out}, nil
+}
+
+type imageBuilder struct {
+	client DockerClient
+	ctx    context.Context
+	logger logging.Logger
+	out    io.Writer
+}
+
+func (ib *imageBuilder) Build(img Image) error {
 	// Create the workspace
 	workDir, err := ioutil.TempDir("", "fold-build")
 	if err != nil {
-		spec.Logger.Debugf("failed to create the temporary workspace: %v", err)
+		ib.logger.Debugf("failed to create the temporary workspace: %v", err)
 		return FailedToPrepareBuildArchive
 	}
-	spec.workDir = workDir
 	defer os.RemoveAll(workDir)
 
 	// Build the archive.
-	archive, err := prepareArchive(spec.Src, workDir, spec.ignoreFilePatterns())
+	archive, err := prepareArchive(img.Src, workDir, img.ignoreFilePatterns())
 	if err != nil {
-		spec.Logger.Debugf("failed to build the tar archive for the build: %v", err)
+		ib.logger.Debugf("failed to build the tar archive for the build: %v", err)
 		return FailedToPrepareBuildArchive
 	}
 
 	// Build the image
-	err = buildImage(ctx, spec, archive)
+	ib.logger.Debugf("building image")
+	opts := types.ImageBuildOptions{
+		Tags: []string{img.Name},
+	}
+
+	resp, err := ib.client.ImageBuild(ib.ctx, archive.File, opts)
 	if err != nil {
-		spec.Logger.Debugf("failed to build image %v", err)
+		ib.logger.Debugf("failed to build image %v", err)
+		return FailedToBuildImage
+	}
+	defer resp.Body.Close()
+	termFd, isTerm := term.GetFdInfo(os.Stderr)
+
+	if err = jsonmessage.DisplayJSONMessagesStream(
+		resp.Body, ib.out, termFd, isTerm, nil,
+	); err != nil {
+		ib.logger.Debugf("failed to build image %v", err)
 		return FailedToBuildImage
 	}
 	return nil
 }
 
-func (bs *ImageSpec) ignoreFilePatterns() []string {
-	gitIgnore := filepath.Join(bs.Src, ".gitignore")
+func (spec *Image) ignoreFilePatterns() []string {
+	gitIgnore := filepath.Join(spec.Src, ".gitignore")
 	if _, err := os.Stat(gitIgnore); os.IsNotExist(err) {
 		return []string{}
 	}
@@ -65,25 +93,4 @@ func (bs *ImageSpec) ignoreFilePatterns() []string {
 	}
 
 	return strings.Split(string(bytes), "\n")
-}
-
-func buildImage(
-	ctx context.Context, spec *ImageSpec, archive *archive.TempArchive,
-) error {
-	spec.Logger.Debugf("building image")
-	opts := types.ImageBuildOptions{
-		Tags: []string{spec.Name},
-	}
-
-	resp, err := spec.DockerClient.ImageBuild(ctx, archive.File, opts)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	termFd, isTerm := term.GetFdInfo(os.Stderr)
-
-	if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, spec.Out, termFd, isTerm, nil); err != nil {
-		return err
-	}
-	return nil
 }

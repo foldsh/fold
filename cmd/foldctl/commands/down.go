@@ -17,15 +17,10 @@ access on http://localhost:8080.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		print("Stopping the fold development server...")
-		rt := getContainerRuntime("docker: ")
-		containers := getAllContainers(rt)
 
-		for _, c := range containers {
-			print("Stopping container %s", c.Name)
-			stopAndRemoveContainer(c)
-		}
-
-		print("Removing foldlocal network")
-		removeFoldLocalNet(rt)
+		out := newOut("docker: ")
+		proj := loadProjectWithRuntime(out)
+		proj.Down()
+		// TODO exit with appropriate error message
 	},
 }

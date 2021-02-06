@@ -32,8 +32,11 @@ will be extracted from the service manifest, and will match the service path on 
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		path := args[0]
-		p := loadProject()
+
+		out := newOut("docker: ")
+		p := loadProjectWithRuntime(out)
 		service := getService(p, path)
-		buildService(service)
+		service.Build(commandCtx, out)
+		// TODO exit with appropriate error message
 	},
 }

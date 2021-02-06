@@ -1,14 +1,21 @@
 package project
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/viper"
-
+	"github.com/foldsh/fold/ctl/container"
 	"github.com/foldsh/fold/logging"
+)
+
+var (
+	NotAFoldProject = errors.New("fold.yaml not found")
+	InvalidConfig   = errors.New("invalid config file")
+	CantWriteConfig = errors.New("can't write fold.yaml")
 )
 
 type Project struct {
@@ -18,16 +25,16 @@ type Project struct {
 	Repository string     `mapstructure:"repository"`
 	Services   []*Service `mapstructure:"services"`
 
-	logger logging.Logger
+	logger  logging.Logger
+	backend Backend
 }
 
-var (
-	NotAFoldProject = errors.New("fold.yaml not found")
-	InvalidConfig   = errors.New("invalid config file")
-	CantWriteConfig = errors.New("can't write fold.yaml")
-
-	NotAService = errors.New("not a valid service")
-)
+func Load(logger logging.Logger, searchPaths ...string) (*Project, error) {
+	if len(searchPaths) == 0 {
+		searchPaths = []string{"."}
+	}
+	return load(logger, searchPaths)
+}
 
 func IsAFoldProject(path string) bool {
 	if _, err := os.Stat(filepath.Join(path, "fold.yaml")); err != nil {
@@ -38,16 +45,23 @@ func IsAFoldProject(path string) bool {
 	return true
 }
 
-func Load(logger logging.Logger) (*Project, error) {
-	return load(logger, ".")
+func (p *Project) ConfigureBackend(b Backend) {
+	p.backend = b
 }
 
-func (p *Project) SaveConfig() error {
-	return saveConfig(p, ".")
+func (p *Project) ConfigureLogger(l logging.Logger) {
+	p.logger = l
+}
+
+func (p *Project) SaveConfig(to ...string) error {
+	if len(to) == 0 {
+		to = []string{"."}
+	}
+	return saveConfig(p, to)
 }
 
 func (p *Project) AddService(svc Service) {
-	svc.project = p
+	svc.Project = p
 	p.Services = append(p.Services, &svc)
 }
 
@@ -63,64 +77,53 @@ func (p *Project) GetService(path string) (*Service, error) {
 	return nil, NotAService
 }
 
-// Looks for fold.yaml in the current directory and loads it.
-func load(logger logging.Logger, path string) (*Project, error) {
-	v := newViper(path)
-	var fileNotFound viper.ConfigFileNotFoundError
-	err := v.ReadInConfig()
-	if err != nil {
-		if errors.As(err, &fileNotFound) {
-			logger.Debugf("config file not found %v", err)
-			return nil, NotAFoldProject
-		} else {
-			logger.Debugf("config file invalid %v", err)
-			return nil, InvalidConfig
+func (p *Project) GetServices(paths ...string) []*Service {
+	// TODO this just ignore invalid services
+	var services []*Service
+	for _, path := range paths {
+		service, err := p.GetService(path)
+		if err == nil {
+			services = append(services, service)
 		}
 	}
-	if !validateConfig(v) {
-		logger.Debugf("invalid config: must set name, maintainer, email and repository")
-		return nil, InvalidConfig
-	}
-	var p *Project
-	err = v.Unmarshal(&p)
-	if err != nil {
-		logger.Debugf("failed to unmarshal config %v", err)
-		return nil, InvalidConfig
-	}
-	p.logger = logger
-	for _, s := range p.Services {
-		s.project = p
-	}
-	return p, nil
+	return services
 }
 
-func saveConfig(p *Project, path string) error {
-	v := newViper(path)
-	v.Set("name", p.Name)
-	v.Set("maintainer", p.Maintainer)
-	v.Set("email", p.Email)
-	v.Set("repository", p.Repository)
-	v.Set("services", p.Services)
-	err := v.WriteConfigAs(filepath.Join(path, "fold.yaml"))
+func (p *Project) Up(ctx context.Context, out io.Writer, services ...*Service) error {
+	net := p.network()
+	p.logger.Debugf("creating network %v", net)
+	err := p.backend.CreateNetworkIfNotExists(net)
 	if err != nil {
-		fmt.Printf("%v", err)
-		return CantWriteConfig
+		p.logger.Debugf("failed to create network for project %s: %v", p.Name, err)
+		return err
+	}
+
+	for _, service := range services {
+		err = service.Start(ctx, out, net)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func newViper(path string) *viper.Viper {
-	v := viper.New()
-	v.AddConfigPath(path)
-	v.SetConfigName("fold")
-	v.SetConfigType("yaml")
-	return v
+func (p *Project) Down() error {
+	for _, service := range p.Services {
+		err := service.Stop()
+		if err != nil {
+			return err
+		}
+	}
+	net := p.network()
+	err := p.backend.RemoveNetworkIfExists(net)
+	if err != nil {
+		p.logger.Debugf("failed to remove network for project %s: %v", p.Name, err)
+		return err
+	}
+	return nil
 }
 
-func validateConfig(v *viper.Viper) bool {
-	n := v.IsSet("name")
-	m := v.IsSet("maintainer")
-	e := v.IsSet("email")
-	r := v.IsSet("repository")
-	return n && m && e && r
+func (p *Project) network() *container.Network {
+	name := fmt.Sprintf("foldnet-%s", p.Name)
+	return p.backend.NewNetwork(name)
 }

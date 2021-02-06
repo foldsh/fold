@@ -18,40 +18,55 @@ var (
 type Network struct {
 	ID   string
 	Name string
-
-	rt *containerRuntime
 }
 
-func (net *Network) CreateIfNotExists() error {
-	exists, err := net.Exists()
+func (cr *ContainerRuntime) NewNetwork(name string) *Network {
+	return &Network{Name: name}
+}
+
+func (cr *ContainerRuntime) CreateNetwork(net *Network) error {
+	networkRes, err := cr.cli.NetworkCreate(cr.ctx, net.Name, types.NetworkCreate{})
+	if err != nil {
+		return FailedToCreateNetwork
+	}
+	net.ID = networkRes.ID
+	return nil
+}
+
+func (cr *ContainerRuntime) RemoveNetwork(net *Network) error {
+	err := cr.cli.NetworkRemove(cr.ctx, net.ID)
+	if err != nil {
+		return FailedToDestroyNetwork
+	}
+	return nil
+}
+
+func (cr *ContainerRuntime) CreateNetworkIfNotExists(net *Network) error {
+	exists, err := cr.NetworkExists(net)
 	if err != nil {
 		return err
 	} else if exists {
 		return nil
 	} else {
-		return net.rt.createNetwork(net)
+		return cr.CreateNetwork(net)
 	}
 }
 
-func (net *Network) Remove() error {
-	return net.rt.removeNetwork(net)
-}
-
-func (net *Network) RemoveIfExists() error {
-	exists, err := net.Exists()
+func (cr *ContainerRuntime) RemoveNetworkIfExists(net *Network) error {
+	exists, err := cr.NetworkExists(net)
 	if err != nil {
 		return err
 	} else if !exists {
 		return nil
 	} else {
-		return net.rt.removeNetwork(net)
+		return cr.RemoveNetwork(net)
 	}
 }
 
-func (net *Network) Exists() (bool, error) {
+func (cr *ContainerRuntime) NetworkExists(net *Network) (bool, error) {
 	// Best just to always look it up rather than checking if it's
 	// already on the Network.
-	existingNetworks, err := net.rt.cli.NetworkList(net.rt.ctx, types.NetworkListOptions{})
+	existingNetworks, err := cr.cli.NetworkList(cr.ctx, types.NetworkListOptions{})
 	if err != nil {
 		return false, DockerEngineError
 	}

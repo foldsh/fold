@@ -17,18 +17,16 @@ access on http://localhost:8080.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		// The current behaviour is that if no services are passed, we just start the network.
+		// TODO accept any number of services and pass the slice onto proj.Up
 		print("Starting the fold development server...")
-		var servicePath string
-		if len(args) == 1 {
-			servicePath = args[0]
-		}
-		proj := loadProject()
-		rt := getContainerRuntime("docker: ")
-		net := getOrCreateFoldNet(rt)
-
-		if servicePath != "" {
-			service := getService(proj, servicePath)
-			getOrCreateContainer(rt, net, service)
-		}
+		// var servicePath string
+		// if len(args) == 1 {
+		// 	servicePath = args[0]
+		// }
+		out := newOut("docker: ")
+		proj := loadProjectWithRuntime(out)
+		services := proj.GetServices(args...)
+		proj.Up(commandCtx, out, services...)
+		// TODO exit with appropriate error message
 	},
 }
