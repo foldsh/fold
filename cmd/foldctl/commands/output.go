@@ -33,16 +33,20 @@ func printErr(f string, args ...interface{}) {
 	fmt.Fprintf(serr, fmt.Sprintf("%s\n", f), args...)
 }
 
-func exitIfError(err error, lines ...string) {
-	if err != nil {
-		logger.Debugf("Exiting with error: %v", err)
-		exitWithMessage(lines...)
-	}
+func exitWithMessage(lines ...string) {
+	print("%s%s", red("ERROR\n\n"), red(strings.Join(lines, "\n")))
+	os.Exit(1)
 }
 
-func exitWithMessage(lines ...string) {
-	print("%s%s", red("Error\n\n"), red(strings.Join(lines, "\n")))
-	os.Exit(1)
+func exitWithErr(err error, lines ...string) {
+	logger.Debugf("exiting with error: %v", err)
+	exitWithMessage(append([]string{err.Error()}, lines...)...)
+}
+
+func exitIfErr(err error, lines ...string) {
+	if err != nil {
+		exitWithErr(err, lines...)
+	}
 }
 
 // This lets you write to an io.Writer with the usual io.Writer interface. However it will also

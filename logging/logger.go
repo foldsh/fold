@@ -53,6 +53,22 @@ func NewLogger(level LogLevel, json bool) (Logger, error) {
 	return logger.Sugar(), nil
 }
 
+func NewCLILogger(level LogLevel) (Logger, error) {
+	config := zap.NewDevelopmentConfig()
+	config.Level = zap.NewAtomicLevelAt(zapLevel(level))
+	config.OutputPaths = []string{"stdout"}
+	config.EncoderConfig = zapcore.EncoderConfig{MessageKey: "M"}
+	logger, err := config.Build()
+	if err != nil {
+		return nil, errors.New("failed to create logger")
+	}
+	return logger.Sugar(), nil
+}
+
+func NewTestLogger() Logger {
+	return zap.NewExample().Sugar()
+}
+
 func zapLevel(level LogLevel) zapcore.Level {
 	switch level {
 	case Panic:
@@ -69,8 +85,4 @@ func zapLevel(level LogLevel) zapcore.Level {
 		return zapcore.DebugLevel
 	}
 	return zapcore.InfoLevel
-}
-
-func NewTestLogger() Logger {
-	return zap.NewExample().Sugar()
 }

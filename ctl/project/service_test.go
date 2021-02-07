@@ -27,9 +27,13 @@ func TestServiceValidate(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.service.Name, func(t *testing.T) {
 			result := tc.service.Validate()
-			if result != tc.expectation {
+			var wasValid bool
+			if result == nil {
+				wasValid = true
+			}
+			if wasValid != tc.expectation {
 				t.Errorf(
-					"For case %s expected %t but found %t.",
+					"For case %s expected valid to be %t but found %v.",
 					tc.service.Name,
 					tc.expectation,
 					result,

@@ -41,28 +41,6 @@ func (cr *ContainerRuntime) RemoveNetwork(net *Network) error {
 	return nil
 }
 
-func (cr *ContainerRuntime) CreateNetworkIfNotExists(net *Network) error {
-	exists, err := cr.NetworkExists(net)
-	if err != nil {
-		return err
-	} else if exists {
-		return nil
-	} else {
-		return cr.CreateNetwork(net)
-	}
-}
-
-func (cr *ContainerRuntime) RemoveNetworkIfExists(net *Network) error {
-	exists, err := cr.NetworkExists(net)
-	if err != nil {
-		return err
-	} else if !exists {
-		return nil
-	} else {
-		return cr.RemoveNetwork(net)
-	}
-}
-
 func (cr *ContainerRuntime) NetworkExists(net *Network) (bool, error) {
 	// Best just to always look it up rather than checking if it's
 	// already on the Network.

@@ -53,20 +53,20 @@ func init() {
 	// Override the access token
 	rootCmd.PersistentFlags().StringP("access-token", "t", "", "fold access token")
 	err := viper.BindPFlag("access-token", rootCmd.PersistentFlags().Lookup("access-token"))
-	exitIfError(err, "Failed to bind the specified access token.", thisIsABug)
+	exitIfErr(err, "Failed to bind the specified access token.", thisIsABug)
 }
 
 func setUpLogger() {
-	var logLevel logging.LogLevel
+	var (
+		l   logging.Logger
+		err error
+	)
 	if debug {
-		logLevel = logging.Debug
-	} else if verbose {
-		logLevel = logging.Info
+		l, err = logging.NewLogger(logging.Debug, false)
 	} else {
-		logLevel = logging.Error
+		l, err = logging.NewCLILogger(logging.Info)
 	}
-	l, err := logging.NewLogger(logLevel, false)
-	exitIfError(err, "Failed to initialise the foldctl logger.", thisIsABug)
+	exitIfErr(err, "Failed to initialise the foldctl logger.", thisIsABug)
 	logger = l
 }
 

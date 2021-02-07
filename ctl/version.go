@@ -2,22 +2,22 @@ package ctl
 
 import "fmt"
 
-var Version version
+var FoldctlVersion SemVer
 
 func init() {
-	Version = version{
+	FoldctlVersion = SemVer{
 		major: 0,
 		minor: 0,
 		patch: 1,
 	}
 }
 
-type version struct {
+type SemVer struct {
 	major int
 	minor int
 	patch int
 }
 
-func (v version) String() string {
+func (v SemVer) String() string {
 	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.patch)
 }

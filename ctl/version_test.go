@@ -3,7 +3,7 @@ package ctl
 import "testing"
 
 func TestVersionString(t *testing.T) {
-	v := version{
+	v := SemVer{
 		major: 1,
 		minor: 2,
 		patch: 3,

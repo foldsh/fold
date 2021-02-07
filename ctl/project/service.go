@@ -15,7 +15,6 @@ import (
 var (
 	ServiceNameRegex = `^[a-z][a-z-_]+$`
 
-	NotAService        = errors.New("not a valid service")
 	ServicePathInvalid = errors.New("cannot build an absolute path to the service")
 )
 
@@ -26,9 +25,24 @@ type Service struct {
 	Project *Project
 }
 
-func (s *Service) Validate() bool {
+type NotAService struct {
+	Service string
+}
+
+func (nas NotAService) Error() string {
+	return fmt.Sprintf("%s is not a registered service", nas.Service)
+}
+
+func (s *Service) Validate() error {
 	matched, _ := regexp.MatchString(ServiceNameRegex, s.Name)
-	return matched
+	if matched {
+		return nil
+	}
+	return fmt.Errorf(
+		"%s is not a valid service name, it must match the regex %s",
+		s.Name,
+		ServiceNameRegex,
+	)
 }
 
 func (s *Service) Id() string {
@@ -49,24 +63,26 @@ func (s *Service) AbsPath() (string, error) {
 }
 
 func (s *Service) Start(ctx context.Context, out io.Writer, net *container.Network) error {
+	s.Project.logger.Infof("Starting container for service %s...", s.Name)
 	img, err := s.Build(ctx, out)
 	if err != nil {
 		return err
 	}
-	container := s.Project.backend.NewContainer(s.containerName(), *img)
-	err = s.Project.backend.RunContainer(container)
+	container := s.Project.api.NewContainer(s.containerName(), *img)
+	err = s.Project.api.RunContainer(container)
 	if err != nil {
 		return err
 	}
-	err = s.Project.backend.AddToNetwork(net, container)
+	err = s.Project.api.AddToNetwork(net, container)
 	if err != nil {
 		return err
 	}
+	s.Project.logger.Infof("Service %s is up in container %s", s.Name, container.Name)
 	return nil
 }
 
 func (s *Service) Stop() error {
-	container, err := s.Project.backend.GetContainer(s.containerName())
+	container, err := s.Project.api.GetContainer(s.containerName())
 	if err != nil {
 		return err
 	}
@@ -74,12 +90,12 @@ func (s *Service) Stop() error {
 		// There is no container for this service, no need do anything.
 		return nil
 	}
-	err = s.Project.backend.StopContainer(container)
+	err = s.Project.api.StopContainer(container)
 	if err != nil {
 		s.Project.logger.Debugf("failed bo stop container %s: %v", container.Name, err)
 		return err
 	}
-	err = s.Project.backend.RemoveContainer(container)
+	err = s.Project.api.RemoveContainer(container)
 	if err != nil {
 		s.Project.logger.Debugf("failed bo remove container %s: %v", container.Name, err)
 		return err

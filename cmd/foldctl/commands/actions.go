@@ -41,14 +41,14 @@ func newOut(outPrefix string) *streamLinePrefixer {
 func loadProjectWithRuntime(out *streamLinePrefixer) *project.Project {
 	p := loadProject()
 	rt, err := container.NewRuntime(commandCtx, logger, out)
-	exitIfError(err, "Failed to create DockerClient. Ensure that the docker daemon is running.")
-	p.ConfigureBackend(rt)
+	exitIfErr(err)
+	p.ConfigureContainerAPI(rt)
 	return p
 }
 
 func saveProjectConfig(p *project.Project) {
 	err := p.SaveConfig()
-	exitIfError(
+	exitIfErr(
 		err,
 		"Failed to save fold config.",
 		"Please check you have permission to write files in this directory.",
@@ -57,7 +57,7 @@ func saveProjectConfig(p *project.Project) {
 
 func getService(p *project.Project, path string) *project.Service {
 	service, err := p.GetService(path)
-	exitIfError(
+	exitIfErr(
 		err,
 		fmt.Sprintf("The path %s is not a registered service.", path),
 		"Please check the path you typed or, if this is a mistake, make sure that the service",

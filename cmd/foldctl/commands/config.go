@@ -24,7 +24,7 @@ var (
 
 func init() {
 	home, err := fs.FoldHome()
-	exitIfError(err, "Failed to locate fold home directory at ~/.fold.")
+	exitIfErr(err, "Failed to locate fold home directory at ~/.fold.")
 	foldHome = home
 	foldBin = fs.FoldBin(foldHome)
 	foldTemplates = fs.FoldTemplates(foldHome)
@@ -80,7 +80,7 @@ func writeDefaultConfig(path string) error {
 	writer.AddConfigPath(path)
 	writer.SetConfigName("config")
 	writer.SetConfigType("yaml")
-	writer.Set("version", ctl.Version.String())
+	writer.Set("version", ctl.FoldctlVersion.String())
 	writer.Set("name", "")
 	writer.Set("email", "")
 	writer.Set("access-token", "")

@@ -19,6 +19,6 @@ You can also use -V, or --version to get the same information.
 	`,
 	Args: cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(ctl.Version.String())
+		fmt.Println(ctl.FoldctlVersion.String())
 	},
 }

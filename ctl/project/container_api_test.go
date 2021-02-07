@@ -29,34 +29,38 @@ var workflowTests = []struct {
 // The goal with this is to run a load of example projects through a
 // project 'lifecycle'. I.e. we bring up all the services, one by one
 // and then bring it down. This should result in a consistent pattern
-// of calls to the backend, which we will make assertions about.
+// of calls to the container api, which we will make assertions about.
 func TestProjectWorkflow(t *testing.T) {
 	for _, tc := range workflowTests {
 		ctrl := gomock.NewController(t)
-		backend := NewMockBackend(ctrl)
+		api := NewMockContainerAPI(ctrl)
 
 		proj := tc.project
-		proj.ConfigureBackend(backend)
+		proj.ConfigureContainerAPI(api)
 		proj.ConfigureLogger(logging.NewTestLogger())
 		t.Run(tc.project.Name, func(t *testing.T) {
 			out := new(bytes.Buffer)
 			netName := fmt.Sprintf("foldnet-%s", proj.Name)
 			net := &container.Network{Name: netName}
-			backend.
+			api.
 				EXPECT().
 				NewNetwork(netName).
 				Return(net)
-			backend.
+			api.
 				EXPECT().
-				CreateNetworkIfNotExists(net)
+				NetworkExists(net).
+				Return(false, nil)
+			api.
+				EXPECT().
+				CreateNetwork(net)
 			for i, svc := range proj.Services {
 				// TODO mock out image builder too
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
 				container := &container.Container{ID: fmt.Sprintf("%d", i), Name: containerName}
-				backend.
+				api.
 					EXPECT().
 					RunContainer(container)
-				backend.
+				api.
 					EXPECT().
 					AddToNetwork(net, container)
 			}
@@ -65,24 +69,28 @@ func TestProjectWorkflow(t *testing.T) {
 			for i, svc := range proj.Services {
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
 				container := &container.Container{ID: fmt.Sprintf("%d", i), Name: containerName}
-				backend.
+				api.
 					EXPECT().
 					GetContainer(containerName).
 					Return(container, nil)
-				backend.
+				api.
 					EXPECT().
 					StopContainer(container)
-				backend.
+				api.
 					EXPECT().
 					RemoveContainer(container)
 			}
-			backend.
+			api.
 				EXPECT().
 				NewNetwork(netName).
 				Return(&container.Network{Name: netName})
-			backend.
+			api.
 				EXPECT().
-				RemoveNetworkIfExists(&container.Network{Name: netName})
+				NetworkExists(net).
+				Return(true, nil)
+			api.
+				EXPECT().
+				RemoveNetwork(net)
 			proj.Down()
 		})
 	}

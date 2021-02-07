@@ -56,19 +56,15 @@ The templates are all availble at https://github.com/foldsh/templates.`,
 		// Build the absolute path to the new service.
 		servicePath = filepath.Join(servicePath, name)
 		absPath, err := filepath.Abs(servicePath)
-		exitIfError(err, servicePathInvalid)
+		exitIfErr(err, servicePathInvalid)
 
 		// Validate the service name
 		service := project.Service{
 			Name: name,
 			Path: servicePath,
 		}
-		if !service.Validate() {
-			msg := fmt.Sprintf(
-				"The service name is invalid, please ensure it matches the regex %s",
-				project.ServiceNameRegex,
-			)
-			exitWithMessage(msg)
+		if err := service.Validate(); err != nil {
+			exitWithErr(err)
 		}
 
 		// Update templates repoistory and validate template
@@ -86,13 +82,16 @@ The templates are all availble at https://github.com/foldsh/templates.`,
 
 		// Create the path to the new service.
 		err = os.MkdirAll(absPath, DIR_PERMISSIONS)
-		exitIfError(err, "Failed to create a directory at the path you specified.", checkPermissions)
+		exitIfErr(err, "Failed to create a directory at the path you specified.", checkPermissions)
 
 		// Copy the contents of the chosen template into the new directory.
 		err = fs.CopyDir(selectedTemplate, absPath)
 		if err != nil {
 			os.RemoveAll(absPath)
-			exitWithMessage("Failed to create a project template at the path you specified.", checkPermissions)
+			exitWithMessage(
+				"Failed to create a project template at the path you specified.",
+				checkPermissions,
+			)
 		}
 
 		// Update the project config
@@ -106,7 +105,7 @@ func updateTemplates() {
 	print("Updating the templates repository...")
 	out := newStreamLinePrefixer(serr, blue("git: "))
 	err := git.UpdateTemplates(out, foldTemplates)
-	exitIfError(err, `Failed to update the template repository.
+	exitIfErr(err, `Failed to update the template repository.
 Please ensure you are connected to the internet and that you are able to access github.com`)
 }
 

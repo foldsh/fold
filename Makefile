@@ -68,8 +68,8 @@ genmocks:
 	mockgen -source=ctl/container/docker_client.go \
 		-destination=ctl/container/mock_docker_client.go \
 		-package container
-	mockgen -source=ctl/project/backend.go \
-		-destination=ctl/project/mock_backend_test.go \
+	mockgen -source=ctl/project/container_api.go \
+		-destination=ctl/project/mock_container_api_test.go \
 		-package project_test
 
 bin: ./bin

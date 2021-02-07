@@ -16,8 +16,6 @@ This will build all of your services and wire them up to a local gateway you can
 access on http://localhost:8080.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		print("Stopping the fold development server...")
-
 		out := newOut("docker: ")
 		proj := loadProjectWithRuntime(out)
 		proj.Down()

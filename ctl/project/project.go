@@ -25,8 +25,8 @@ type Project struct {
 	Repository string     `mapstructure:"repository"`
 	Services   []*Service `mapstructure:"services"`
 
-	logger  logging.Logger
-	backend Backend
+	logger logging.Logger
+	api    ContainerAPI
 }
 
 func Load(logger logging.Logger, searchPaths ...string) (*Project, error) {
@@ -45,8 +45,8 @@ func IsAFoldProject(path string) bool {
 	return true
 }
 
-func (p *Project) ConfigureBackend(b Backend) {
-	p.backend = b
+func (p *Project) ConfigureContainerAPI(b ContainerAPI) {
+	p.api = b
 }
 
 func (p *Project) ConfigureLogger(l logging.Logger) {
@@ -74,56 +74,85 @@ func (p *Project) GetService(path string) (*Service, error) {
 			return svc, nil
 		}
 	}
-	return nil, NotAService
+	p.logger.Debugf("no service found for path %s", name)
+	return nil, NotAService{path}
 }
 
-func (p *Project) GetServices(paths ...string) []*Service {
+func (p *Project) GetServices(paths ...string) ([]*Service, error) {
 	// TODO this just ignore invalid services
 	var services []*Service
 	for _, path := range paths {
 		service, err := p.GetService(path)
-		if err == nil {
-			services = append(services, service)
+		if err != nil {
+			return nil, err
 		}
+		services = append(services, service)
 	}
-	return services
+	return services, nil
 }
 
 func (p *Project) Up(ctx context.Context, out io.Writer, services ...*Service) error {
+	p.logger.Infof("Bringing up the fold development server for project %s...", p.Name)
+
+	// Ensure network
 	net := p.network()
-	p.logger.Debugf("creating network %v", net)
-	err := p.backend.CreateNetworkIfNotExists(net)
+	exists, err := p.api.NetworkExists(net)
 	if err != nil {
-		p.logger.Debugf("failed to create network for project %s: %v", p.Name, err)
 		return err
+	} else if !exists {
+		p.logger.Infof("Creating the local network for project %s...", p.Name)
+		err := p.api.CreateNetwork(net)
+		if err != nil {
+			p.logger.Debugf("Failed to create network for project %s: %v", p.Name, err)
+			return err
+		}
 	}
 
+	// Bring up services
 	for _, service := range services {
 		err = service.Start(ctx, out, net)
 		if err != nil {
 			return err
 		}
 	}
+	p.logger.Infof("The fold development server is now ready")
 	return nil
 }
 
 func (p *Project) Down() error {
+	p.logger.Infof("Taking down the fold development server for project %s...", p.Name)
+
+	// Take down services - doing this first ensures that we remove fold containers even
+	// if the user has done something like delete the network manually.
 	for _, service := range p.Services {
 		err := service.Stop()
 		if err != nil {
 			return err
 		}
 	}
+
+	// Determine if we need to take down the network.
 	net := p.network()
-	err := p.backend.RemoveNetworkIfExists(net)
+	exists, err := p.api.NetworkExists(net)
+	if err != nil {
+		return err
+	} else if !exists {
+		p.logger.Infof("Local network for project %s is not up, nothing to do.", p.Name)
+		return nil
+	}
+	// It exists, so remove it.
+	p.logger.Infof("Taking down the local network for project %s...", p.Name)
+	err = p.api.RemoveNetwork(net)
 	if err != nil {
 		p.logger.Debugf("failed to remove network for project %s: %v", p.Name, err)
 		return err
 	}
+
+	p.logger.Infof("The fold development server has been taken down successfully")
 	return nil
 }
 
 func (p *Project) network() *container.Network {
 	name := fmt.Sprintf("foldnet-%s", p.Name)
-	return p.backend.NewNetwork(name)
+	return p.api.NewNetwork(name)
 }

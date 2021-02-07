@@ -128,8 +128,9 @@ func TestProjectServiceUtils(t *testing.T) {
 		if s != nil {
 			t.Errorf("Service should be nil when asking for an invalid service")
 		}
-		if !errors.Is(err, project.NotAService) {
-			t.Errorf("Expected NotAService but got %v", err)
+		var notAService project.NotAService
+		if !errors.As(err, &notAService) {
+			t.Errorf("Expected NotAService but got %v", notAService)
 		}
 	}
 	validServicePaths := []string{"a", "./a", "a/", "./a/"}

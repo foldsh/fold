@@ -26,7 +26,8 @@ func TestNetworkCreateAndDestroy(t *testing.T) {
 		EXPECT().
 		NetworkCreate(any, "test", any).
 		Return(types.NetworkCreateResponse{ID: "testNetID"}, nil)
-	rt.CreateNetworkIfNotExists(net)
+	rt.NetworkExists(net)
+	rt.CreateNetwork(net)
 	if net.ID != "testNetID" {
 		t.Errorf("After creating expected ID to be 'testNetID' but found %s", net.ID)
 	}
@@ -39,8 +40,9 @@ func TestNetworkCreateAndDestroy(t *testing.T) {
 			{Name: "bar", ID: "barID"},
 			{Name: "test", ID: "testNetID"},
 		}, nil)
+	rt.NetworkExists(net)
 	dc.EXPECT().NetworkRemove(any, "testNetID")
-	rt.RemoveNetworkIfExists(net)
+	rt.RemoveNetwork(net)
 }
 
 func TestNetworkCreateFailure(t *testing.T) {
@@ -51,16 +53,9 @@ func TestNetworkCreateFailure(t *testing.T) {
 	net := &Network{Name: "test"}
 	dc.
 		EXPECT().
-		NetworkList(any, any).
-		Return([]types.NetworkResource{
-			{Name: "foo", ID: "fooID"},
-			{Name: "bar", ID: "barID"},
-		}, nil)
-	dc.
-		EXPECT().
 		NetworkCreate(any, "test", any).
 		Return(types.NetworkCreateResponse{}, errors.New("something went wrong"))
-	err := rt.CreateNetworkIfNotExists(net)
+	err := rt.CreateNetwork(net)
 	if !errors.Is(err, FailedToCreateNetwork) {
 		t.Errorf("Expected FailedToCreateNetwork error but found %v", err)
 	}
@@ -80,9 +75,15 @@ func TestNetworkThatExistsShouldNotBeRecreated(t *testing.T) {
 			{Name: "foo", ID: "fooID"},
 			{Name: "bar", ID: "barID"},
 		}, nil)
-	err := rt.CreateNetworkIfNotExists(net)
+	exists, err := rt.NetworkExists(net)
 	if err != nil {
 		t.Errorf("Expected nil but found %v", err)
+	}
+	if !exists {
+		err := rt.CreateNetwork(net)
+		if err != nil {
+			t.Errorf("Expected nil but found %v", err)
+		}
 	}
 	if net.ID != "testID" {
 		t.Errorf("Expected to find ID of existing network")

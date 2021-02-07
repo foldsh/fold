@@ -6,11 +6,12 @@ import (
 	"github.com/foldsh/fold/ctl/container"
 )
 
-type Backend interface {
+type ContainerAPI interface {
 	Context() context.Context
 	NewNetwork(name string) *container.Network
-	CreateNetworkIfNotExists(net *container.Network) error
-	RemoveNetworkIfExists(net *container.Network) error
+	NetworkExists(net *container.Network) (bool, error)
+	CreateNetwork(net *container.Network) error
+	RemoveNetwork(net *container.Network) error
 	NewContainer(
 		name string,
 		image container.Image,

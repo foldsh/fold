@@ -47,8 +47,8 @@ func TestConfigCreatedIfNotPresent(t *testing.T) {
 		t.Fatal("Failed to create default config")
 	}
 
-	if viper.Get("version") != ctl.Version.String() {
-		t.Fatalf("Expected '%s' but found %s", ctl.Version.String(), viper.Get("version"))
+	if viper.Get("version") != ctl.FoldctlVersion.String() {
+		t.Fatalf("Expected '%s' but found %s", ctl.FoldctlVersion.String(), viper.Get("version"))
 	}
 	if viper.Get("name") != "" {
 		t.Fatalf("Expected '' but found %s", viper.Get("name"))
