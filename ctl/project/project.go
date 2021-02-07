@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/foldsh/fold/ctl/container"
+	"github.com/foldsh/fold/ctl/gateway"
 	"github.com/foldsh/fold/logging"
 )
 
@@ -101,17 +102,38 @@ func (p *Project) Up(ctx context.Context, out io.Writer, services ...*Service) e
 		return err
 	} else if !exists {
 		p.logger.Infof("Creating the local network for project %s...", p.Name)
-		err := p.api.CreateNetwork(net)
-		if err != nil {
+		if err := p.api.CreateNetwork(net); err != nil {
 			p.logger.Debugf("Failed to create network for project %s: %v", p.Name, err)
 			return err
 		}
 	}
+	if err := p.startGateway(net); err != nil {
+		return err
+	}
 
 	// Bring up services
 	for _, service := range services {
-		err = service.Start(ctx, out, net)
+		p.logger.Infof("Starting container for service %s...", service.Name)
+		// Check if the service is already up.
+		container, err := p.api.GetContainer(service.containerName())
 		if err != nil {
+			p.logger.Debugf(
+				"Failed to check if container for service %s already exists",
+				service.Name,
+			)
+			return err
+		}
+		if container != nil {
+			p.logger.Infof("Service %s is already up, no need to do anything", service.Name)
+			continue
+		}
+		// Build the service
+		img, err := service.Build(ctx, out)
+		if err != nil {
+			return err
+		}
+		// Start the service
+		if err := service.Start(img, net); err != nil {
 			return err
 		}
 	}
@@ -125,10 +147,14 @@ func (p *Project) Down() error {
 	// Take down services - doing this first ensures that we remove fold containers even
 	// if the user has done something like delete the network manually.
 	for _, service := range p.Services {
-		err := service.Stop()
-		if err != nil {
+		if err := service.Stop(); err != nil {
 			return err
 		}
+	}
+
+	// Stop the gateway
+	if err := p.stopGateway(); err != nil {
+		return err
 	}
 
 	// Determine if we need to take down the network.
@@ -142,8 +168,7 @@ func (p *Project) Down() error {
 	}
 	// It exists, so remove it.
 	p.logger.Infof("Taking down the local network for project %s...", p.Name)
-	err = p.api.RemoveNetwork(net)
-	if err != nil {
+	if err = p.api.RemoveNetwork(net); err != nil {
 		p.logger.Debugf("failed to remove network for project %s: %v", p.Name, err)
 		return err
 	}
@@ -155,4 +180,66 @@ func (p *Project) Down() error {
 func (p *Project) network() *container.Network {
 	name := fmt.Sprintf("foldnet-%s", p.Name)
 	return p.api.NewNetwork(name)
+}
+
+func (p *Project) gateway() *gateway.Gateway {
+	return &gateway.Gateway{Port: 8080}
+}
+
+func (p *Project) startGateway(net *container.Network) error {
+	// TODO check if gateway exists and NOOP if it does
+	gw := p.gateway()
+	p.logger.Infof("Starting fold local gateway on port %d...", gw.Port)
+	if up, err := p.isGatewayUp(gw); err != nil {
+		return err
+	} else if up {
+		p.logger.Infof("Gateway is already up, nothing to do.")
+		return nil
+	}
+	imgName := gw.ImageName()
+	img, err := p.api.PullImage(imgName)
+	if err != nil {
+		p.logger.Debugf("failed to pull the image for the gateway: %v", err)
+		return fmt.Errorf("failed to pull image %s", imgName)
+	}
+	gwService := p.gatewayService(gw)
+	// TODO need to allow options to open port through image spec
+	err = gwService.Start(img, net)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *Project) stopGateway() error {
+	p.logger.Infof("Stopping fold local gateway...")
+	gw := p.gateway()
+	if up, err := p.isGatewayUp(gw); err != nil {
+		return err
+	} else if !up {
+		p.logger.Infof("Gateway is not up, nothing to do.")
+		return nil
+	}
+	svc := p.gatewayService(gw)
+	if err := svc.Stop(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (p *Project) isGatewayUp(gw *gateway.Gateway) (bool, error) {
+	svc := p.gatewayService(gw)
+	container, err := p.api.GetContainer(svc.containerName())
+	if err != nil {
+		p.logger.Debugf("Failed to check if gateway is already up: %v", err)
+		return false, err
+	}
+	if container == nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (p *Project) gatewayService(gw *gateway.Gateway) *Service {
+	return &Service{Name: "foldgw", Project: p}
 }

@@ -1,23 +1,9 @@
 package ctl
 
-import "fmt"
+import "github.com/foldsh/fold/version"
 
-var FoldctlVersion SemVer
-
-func init() {
-	FoldctlVersion = SemVer{
-		major: 0,
-		minor: 0,
-		patch: 1,
-	}
-}
-
-type SemVer struct {
-	major int
-	minor int
-	patch int
-}
-
-func (v SemVer) String() string {
-	return fmt.Sprintf("%d.%d.%d", v.major, v.minor, v.patch)
+var FoldctlVersion = version.SemVer{
+	Major: 0,
+	Minor: 0,
+	Patch: 1,
 }

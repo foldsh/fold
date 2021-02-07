@@ -113,15 +113,6 @@ func (cr *ContainerRuntime) RemoveFromNetwork(net *Network, con *Container) erro
 	return nil
 }
 
-func (cr *ContainerRuntime) pullImage(image string) error {
-	// TODO returns a ReadCloser - pipe this through to the cli perhaps?
-	_, err := cr.cli.ImagePull(cr.ctx, image, types.ImagePullOptions{})
-	if err != nil {
-		return FailedToPullImage
-	}
-	return nil
-}
-
 func (cr *ContainerRuntime) listContainers() ([]*Container, error) {
 	containers, err := cr.cli.ContainerList(cr.ctx, types.ContainerListOptions{})
 	if err != nil {

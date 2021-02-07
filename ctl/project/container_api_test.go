@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/foldsh/fold/ctl/container"
+	"github.com/foldsh/fold/ctl/gateway"
 	"github.com/foldsh/fold/ctl/project"
 	"github.com/foldsh/fold/logging"
 	"github.com/golang/mock/gomock"
@@ -33,6 +34,7 @@ var workflowTests = []struct {
 func TestProjectWorkflow(t *testing.T) {
 	for _, tc := range workflowTests {
 		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
 		api := NewMockContainerAPI(ctrl)
 
 		proj := tc.project
@@ -42,6 +44,7 @@ func TestProjectWorkflow(t *testing.T) {
 			out := new(bytes.Buffer)
 			netName := fmt.Sprintf("foldnet-%s", proj.Name)
 			net := &container.Network{Name: netName}
+			// Should set up network
 			api.
 				EXPECT().
 				NewNetwork(netName).
@@ -53,10 +56,55 @@ func TestProjectWorkflow(t *testing.T) {
 			api.
 				EXPECT().
 				CreateNetwork(net)
+
+			// Should start the gateway
+			gwSvc := &project.Service{Name: "foldgw", Project: proj}
+			gwImgName := (&gateway.Gateway{}).ImageName()
+			gwImg := &container.Image{Name: gwImgName}
+			api.
+				EXPECT().
+				GetContainer(fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)).
+				Return(nil, nil)
+			gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
+			gwContainer := &container.Container{ID: fmt.Sprintf("%d", 0), Name: gwContainerName}
+			api.
+				EXPECT().
+				PullImage(gwImgName).
+				Return(gwImg, nil)
+			api.
+				EXPECT().
+				NewContainer(gwContainerName, *gwImg).
+				Return(gwContainer)
+			api.
+				EXPECT().
+				RunContainer(gwContainer)
+			api.
+				EXPECT().
+				AddToNetwork(net, gwContainer)
+
+			// Should set up the services
 			for i, svc := range proj.Services {
-				// TODO mock out image builder too
+				path, err := svc.AbsPath()
+				if err != nil {
+					t.Errorf("failed to get service abs path %v", err)
+				}
+				img := &container.Image{
+					Name: fmt.Sprintf("foldlocal/%s/%s", svc.Id(), svc.Name),
+					Src:  path,
+				}
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
 				container := &container.Container{ID: fmt.Sprintf("%d", i), Name: containerName}
+				api.
+					EXPECT().
+					GetContainer(containerName).
+					Return(nil, nil)
+				api.
+					EXPECT().
+					BuildImage(img)
+				api.
+					EXPECT().
+					NewContainer(containerName, *img).
+					Return(container)
 				api.
 					EXPECT().
 					RunContainer(container)
@@ -66,6 +114,7 @@ func TestProjectWorkflow(t *testing.T) {
 			}
 			proj.Up(context.Background(), out, proj.Services...)
 
+			// Should take down the services
 			for i, svc := range proj.Services {
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
 				container := &container.Container{ID: fmt.Sprintf("%d", i), Name: containerName}
@@ -80,6 +129,12 @@ func TestProjectWorkflow(t *testing.T) {
 					EXPECT().
 					RemoveContainer(container)
 			}
+			// Should take down the gateway
+			api.
+				EXPECT().
+				GetContainer(fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)).
+				Return(nil, nil)
+			// Should take down the network
 			api.
 				EXPECT().
 				NewNetwork(netName).
@@ -93,6 +148,52 @@ func TestProjectWorkflow(t *testing.T) {
 				RemoveNetwork(net)
 			proj.Down()
 		})
+	}
+}
+
+func TestUpDoesntDuplicateResources(t *testing.T) {
+	// For this test we will set the mocked calls to the container API
+	// to return resources. This should result in a short circuit,
+	// and no attempt should be made to create the resources again.
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	api := NewMockContainerAPI(ctrl)
+
+	svc := &project.Service{Name: "one", Path: "./one"}
+	proj := makeProject("one-service", svc)
+	proj.ConfigureContainerAPI(api)
+	proj.ConfigureLogger(logging.NewTestLogger())
+
+	netName := fmt.Sprintf("foldnet-%s", proj.Name)
+	net := &container.Network{Name: netName}
+	// Should reuse network
+	api.
+		EXPECT().
+		NewNetwork(netName).
+		Return(net)
+	api.
+		EXPECT().
+		NetworkExists(net).
+		Return(true, nil)
+	// Should reuse gateway
+	gwSvc := &project.Service{Name: "foldgw", Project: proj}
+	gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
+	gwContainer := &container.Container{ID: fmt.Sprintf("%d", 0), Name: gwContainerName}
+	api.
+		EXPECT().
+		GetContainer(fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)).
+		Return(gwContainer, nil)
+
+	containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
+	container := &container.Container{ID: fmt.Sprintf("%d", 0), Name: containerName}
+	// Should reuse service container
+	api.
+		EXPECT().
+		GetContainer(containerName).
+		Return(container, nil)
+	err := proj.Up(context.Background(), &bytes.Buffer{}, svc)
+	if err != nil {
+		t.Errorf("expected no error but found %v", err)
 	}
 }
 

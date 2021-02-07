@@ -22,8 +22,9 @@ access on http://localhost:8080.`,
 		out := newOut("docker: ")
 		proj := loadProjectWithRuntime(out)
 		if services, err := proj.GetServices(args...); err == nil {
-			// TODO exit with appropriate error message if up errors
-			proj.Up(commandCtx, out, services...)
+			if err := proj.Up(commandCtx, out, services...); err != nil {
+				exitWithErr(err)
+			}
 		} else {
 			var notAService project.NotAService
 			if errors.As(err, &notAService) {

@@ -1,12 +1,12 @@
-package ctl
+package version
 
 import "testing"
 
 func TestVersionString(t *testing.T) {
 	v := SemVer{
-		major: 1,
-		minor: 2,
-		patch: 3,
+		Major: 1,
+		Minor: 2,
+		Patch: 3,
 	}
 
 	if v.String() != "1.2.3" {

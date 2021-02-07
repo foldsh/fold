@@ -105,6 +105,35 @@ func (mr *MockContainerAPIMockRecorder) RemoveNetwork(net interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveNetwork", reflect.TypeOf((*MockContainerAPI)(nil).RemoveNetwork), net)
 }
 
+// PullImage mocks base method
+func (m *MockContainerAPI) PullImage(img string) (*container.Image, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PullImage", img)
+	ret0, _ := ret[0].(*container.Image)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PullImage indicates an expected call of PullImage
+func (mr *MockContainerAPIMockRecorder) PullImage(img interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullImage", reflect.TypeOf((*MockContainerAPI)(nil).PullImage), img)
+}
+
+// BuildImage mocks base method
+func (m *MockContainerAPI) BuildImage(img *container.Image) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BuildImage", img)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BuildImage indicates an expected call of BuildImage
+func (mr *MockContainerAPIMockRecorder) BuildImage(img interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildImage", reflect.TypeOf((*MockContainerAPI)(nil).BuildImage), img)
+}
+
 // NewContainer mocks base method
 func (m *MockContainerAPI) NewContainer(name string, image container.Image, mounts ...container.Mount) *container.Container {
 	m.ctrl.T.Helper()

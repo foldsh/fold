@@ -62,14 +62,10 @@ func (s *Service) AbsPath() (string, error) {
 	return p, nil
 }
 
-func (s *Service) Start(ctx context.Context, out io.Writer, net *container.Network) error {
-	s.Project.logger.Infof("Starting container for service %s...", s.Name)
-	img, err := s.Build(ctx, out)
-	if err != nil {
-		return err
-	}
+func (s *Service) Start(img *container.Image, net *container.Network) error {
+	s.Project.logger.Debugf("%v %v", s, img, net)
 	container := s.Project.api.NewContainer(s.containerName(), *img)
-	err = s.Project.api.RunContainer(container)
+	err := s.Project.api.RunContainer(container)
 	if err != nil {
 		return err
 	}
@@ -90,14 +86,15 @@ func (s *Service) Stop() error {
 		// There is no container for this service, no need do anything.
 		return nil
 	}
+	s.Project.logger.Infof("Stopping container %s", container.Name)
 	err = s.Project.api.StopContainer(container)
 	if err != nil {
-		s.Project.logger.Debugf("failed bo stop container %s: %v", container.Name, err)
+		s.Project.logger.Debugf("Failed bo stop container %s: %v", container.Name, err)
 		return err
 	}
 	err = s.Project.api.RemoveContainer(container)
 	if err != nil {
-		s.Project.logger.Debugf("failed bo remove container %s: %v", container.Name, err)
+		s.Project.logger.Debugf("Failed bo remove container %s: %v", container.Name, err)
 		return err
 	}
 	return nil
@@ -108,15 +105,10 @@ func (s *Service) Build(ctx context.Context, out io.Writer) (*container.Image, e
 	if err != nil {
 		return nil, err
 	}
-	s.Project.logger.Debugf("preparing to build service %s with tag %s", s.Name, img.Name)
-	ib, err := container.NewImageBuilder(ctx, s.Project.logger, out)
+	s.Project.logger.Debugf("Preparing to build service %s with tag %s", s.Name, img.Name)
+	err = s.Project.api.BuildImage(img)
 	if err != nil {
-		s.Project.logger.Debugf("failed bo construct image builder %v", err)
-		return nil, err
-	}
-	err = ib.Build(*img)
-	if err != nil {
-		s.Project.logger.Debugf("failed bo build image %v", err)
+		s.Project.logger.Debugf("Failed bo build image %v", err)
 		return nil, err
 	}
 	return img, nil

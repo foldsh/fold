@@ -2,9 +2,7 @@
 package container
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -12,7 +10,6 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/pkg/jsonmessage"
-	"github.com/foldsh/fold/logging"
 	"github.com/moby/term"
 )
 
@@ -21,32 +18,30 @@ type Image struct {
 	Name string
 }
 
-type ImageBuilder interface {
-	Build(spec Image) error
-}
-
-func NewImageBuilder(
-	ctx context.Context, logger logging.Logger, out io.Writer,
-) (ImageBuilder, error) {
-	client, err := newDockerClient(logger)
+func (cr *ContainerRuntime) PullImage(img string) (*Image, error) {
+	cr.logger.Infof("Pulling image %s", img)
+	rc, err := cr.cli.ImagePull(cr.ctx, img, types.ImagePullOptions{})
 	if err != nil {
-		return nil, err
+		return nil, FailedToPullImage
 	}
-	return &imageBuilder{client, ctx, logger, out}, nil
+	defer rc.Close()
+	termFd, isTerm := term.GetFdInfo(os.Stderr)
+
+	if err = jsonmessage.DisplayJSONMessagesStream(
+		rc, cr.out, termFd, isTerm, nil,
+	); err != nil {
+		cr.logger.Debugf("failed to pull image %v", err)
+		return nil, FailedToPullImage
+	}
+	cr.logger.Infof("Successfully pulled image %s", img)
+	return &Image{Name: img}, nil
 }
 
-type imageBuilder struct {
-	client DockerClient
-	ctx    context.Context
-	logger logging.Logger
-	out    io.Writer
-}
-
-func (ib *imageBuilder) Build(img Image) error {
+func (cr *ContainerRuntime) BuildImage(img *Image) error {
 	// Create the workspace
 	workDir, err := ioutil.TempDir("", "fold-build")
 	if err != nil {
-		ib.logger.Debugf("failed to create the temporary workspace: %v", err)
+		cr.logger.Debugf("failed to create the temporary workspace: %v", err)
 		return FailedToPrepareBuildArchive
 	}
 	defer os.RemoveAll(workDir)
@@ -54,28 +49,28 @@ func (ib *imageBuilder) Build(img Image) error {
 	// Build the archive.
 	archive, err := prepareArchive(img.Src, workDir, img.ignoreFilePatterns())
 	if err != nil {
-		ib.logger.Debugf("failed to build the tar archive for the build: %v", err)
+		cr.logger.Debugf("failed to build the tar archive for the build: %v", err)
 		return FailedToPrepareBuildArchive
 	}
 
 	// Build the image
-	ib.logger.Debugf("building image")
+	cr.logger.Debugf("building image")
 	opts := types.ImageBuildOptions{
 		Tags: []string{img.Name},
 	}
 
-	resp, err := ib.client.ImageBuild(ib.ctx, archive.File, opts)
+	resp, err := cr.cli.ImageBuild(cr.ctx, archive.File, opts)
 	if err != nil {
-		ib.logger.Debugf("failed to build image %v", err)
+		cr.logger.Debugf("failed to build image %v", err)
 		return FailedToBuildImage
 	}
 	defer resp.Body.Close()
 	termFd, isTerm := term.GetFdInfo(os.Stderr)
 
 	if err = jsonmessage.DisplayJSONMessagesStream(
-		resp.Body, ib.out, termFd, isTerm, nil,
+		resp.Body, cr.out, termFd, isTerm, nil,
 	); err != nil {
-		ib.logger.Debugf("failed to build image %v", err)
+		cr.logger.Debugf("failed to build image %v", err)
 		return FailedToBuildImage
 	}
 	return nil
