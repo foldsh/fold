@@ -1,4 +1,4 @@
 FROM alpine
-COPY bin/foldrt /foldrt
-EXPOSE 12345
+COPY foldrt /foldrt
+EXPOSE 8080
 ENTRYPOINT ["/foldrt"]

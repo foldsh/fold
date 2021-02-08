@@ -87,20 +87,12 @@ func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
 	}
 	resp, err := cr.cli.ContainerCreate(
 		cr.ctx,
-		&container.Config{
-			Image: con.Image.Name,
-		},
-		&container.HostConfig{
-			PortBindings: portBindings,
-			Mounts:       mounts,
-			// TODO make auto removing containers configurable
-			AutoRemove: true,
-		},
+		&container.Config{Image: con.Image.Name},
+		// TODO make auto removing containers configurable
+		&container.HostConfig{PortBindings: portBindings, Mounts: mounts, AutoRemove: true},
 		&network.NetworkingConfig{
 			EndpointsConfig: map[string]*network.EndpointSettings{
-				net.Name: &network.EndpointSettings{
-					Aliases: []string{con.NetworkAlias},
-				},
+				net.Name: &network.EndpointSettings{Aliases: []string{con.NetworkAlias}},
 			},
 		},
 		nil,
