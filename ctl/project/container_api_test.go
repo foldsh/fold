@@ -61,12 +61,13 @@ func TestProjectWorkflow(t *testing.T) {
 			gwSvc := &project.Service{Name: "foldgw", Project: proj}
 			gwImgName := (&gateway.Gateway{}).ImageName()
 			gwImg := &container.Image{Name: gwImgName}
-			api.
-				EXPECT().
-				GetContainer(fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)).
-				Return(nil, nil)
 			gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
 			gwContainer := &container.Container{ID: fmt.Sprintf("%d", 0), Name: gwContainerName}
+
+			api.
+				EXPECT().
+				GetContainer(gwContainerName).
+				Return(nil, nil)
 			api.
 				EXPECT().
 				PullImage(gwImgName).
@@ -77,10 +78,7 @@ func TestProjectWorkflow(t *testing.T) {
 				Return(gwContainer)
 			api.
 				EXPECT().
-				RunContainer(gwContainer)
-			api.
-				EXPECT().
-				AddToNetwork(net, gwContainer)
+				RunContainer(net, gwContainer)
 
 			// Should set up the services
 			for i, svc := range proj.Services {
@@ -107,10 +105,7 @@ func TestProjectWorkflow(t *testing.T) {
 					Return(container)
 				api.
 					EXPECT().
-					RunContainer(container)
-				api.
-					EXPECT().
-					AddToNetwork(net, container)
+					RunContainer(net, container)
 			}
 			proj.Up(context.Background(), out, proj.Services...)
 
@@ -125,15 +120,15 @@ func TestProjectWorkflow(t *testing.T) {
 				api.
 					EXPECT().
 					StopContainer(container)
-				api.
-					EXPECT().
-					RemoveContainer(container)
 			}
 			// Should take down the gateway
 			api.
 				EXPECT().
-				GetContainer(fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)).
-				Return(nil, nil)
+				GetContainer(gwContainerName).
+				Return(gwContainer, nil)
+			api.
+				EXPECT().
+				StopContainer(gwContainer)
 			// Should take down the network
 			api.
 				EXPECT().

@@ -19,10 +19,16 @@ var (
 )
 
 type Service struct {
-	Name    string   `mapstructure:"name"`
-	Path    string   `mapstructure:"path"`
-	Mounts  []string `mapstructure:"mounts"`
+	Name    string  `mapstructure:"name"`
+	Path    string  `mapstructure:"path"`
+	Mounts  []Mount `mapstructure:"mounts"`
+	Port    int
 	Project *Project
+}
+
+type Mount struct {
+	Src string `mapstructure:"src"`
+	Dst string `mapstructure:"dst"`
 }
 
 type NotAService struct {
@@ -64,16 +70,20 @@ func (s *Service) AbsPath() (string, error) {
 
 func (s *Service) Start(img *container.Image, net *container.Network) error {
 	s.Project.logger.Debugf("%v %v", s, img, net)
-	container := s.Project.api.NewContainer(s.containerName(), *img)
-	err := s.Project.api.RunContainer(container)
+	con := s.Project.api.NewContainer(s.containerName(), *img)
+	con.NetworkAlias = s.Name
+	con.Ports = []int{s.Port}
+	var mounts []container.Mount
+	for _, m := range s.Mounts {
+		mounts = append(mounts, container.Mount{Src: m.Src, Dst: m.Dst})
+	}
+	con.Mounts = mounts
+
+	err := s.Project.api.RunContainer(net, con)
 	if err != nil {
 		return err
 	}
-	err = s.Project.api.AddToNetwork(net, container)
-	if err != nil {
-		return err
-	}
-	s.Project.logger.Infof("Service %s is up in container %s", s.Name, container.Name)
+	s.Project.logger.Infof("Service %s is up in container %s", s.Name, con.Name)
 	return nil
 }
 
@@ -89,12 +99,7 @@ func (s *Service) Stop() error {
 	s.Project.logger.Infof("Stopping container %s", container.Name)
 	err = s.Project.api.StopContainer(container)
 	if err != nil {
-		s.Project.logger.Debugf("Failed bo stop container %s: %v", container.Name, err)
-		return err
-	}
-	err = s.Project.api.RemoveContainer(container)
-	if err != nil {
-		s.Project.logger.Debugf("Failed bo remove container %s: %v", container.Name, err)
+		s.Project.logger.Debugf("Failed to stop container %s: %v", container.Name, err)
 		return err
 	}
 	return nil

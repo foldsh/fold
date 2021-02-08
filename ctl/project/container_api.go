@@ -20,8 +20,6 @@ type ContainerAPI interface {
 		mounts ...container.Mount,
 	) *container.Container
 	GetContainer(name string) (*container.Container, error)
-	RunContainer(con *container.Container) error
+	RunContainer(net *container.Network, con *container.Container) error
 	StopContainer(con *container.Container) error
-	RemoveContainer(con *container.Container) error
-	AddToNetwork(n *container.Network, con *container.Container) error
 }

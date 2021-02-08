@@ -18,13 +18,14 @@ import (
 var any = gomock.Any()
 
 func TestContainerStartAndStop(t *testing.T) {
+	// TODO improve this by checking the container create config in detail
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
 	rt := mockRuntime(dc)
 	con := &Container{
-		Name:    "test",
-		Image:   Image{Name: "fold/test"},
+		Name:   "test",
+		Image:  Image{Name: "fold/test"},
 		Mounts: []Mount{{"foo", "bar"}},
 	}
 
@@ -37,7 +38,7 @@ func TestContainerStartAndStop(t *testing.T) {
 	dc.
 		EXPECT().
 		ContainerStart(any, "testContainerID", any)
-	rt.RunContainer(con)
+	rt.RunContainer(&Network{}, con)
 	if con.ID != "testContainerID" {
 		t.Errorf("Expected container ID to be set after start")
 	}
@@ -53,8 +54,8 @@ func TestContainerStartAndStopFailure(t *testing.T) {
 	dc := NewMockDockerClient(ctrl)
 	rt := mockRuntime(dc)
 	con := &Container{
-		Name:    "test",
-		Image:   Image{Name: "fold/test"},
+		Name:   "test",
+		Image:  Image{Name: "fold/test"},
 		Mounts: []Mount{{"foo", "bar"}},
 	}
 
@@ -62,7 +63,7 @@ func TestContainerStartAndStopFailure(t *testing.T) {
 		EXPECT().
 		ContainerCreate(any, any, any, any, any, any).
 		Return(container.ContainerCreateCreatedBody{}, errors.New("an error"))
-	err := rt.RunContainer(con)
+	err := rt.RunContainer(&Network{}, con)
 	if !errors.Is(err, FailedToCreateContainer) {
 		t.Errorf("Expected FailedToCreateContainer but found %v", err)
 	}
@@ -74,7 +75,7 @@ func TestContainerStartAndStopFailure(t *testing.T) {
 		EXPECT().
 		ContainerStart(any, any, any).
 		Return(errors.New("an error"))
-	err = rt.RunContainer(con)
+	err = rt.RunContainer(&Network{}, con)
 	if !errors.Is(err, FailedToStartContainer) {
 		t.Errorf("Expected FailedToStartContainer but found %v", err)
 	}
@@ -94,9 +95,9 @@ func TestContainerRemove(t *testing.T) {
 	dc := NewMockDockerClient(ctrl)
 	rt := mockRuntime(dc)
 	con := &Container{
-		ID:      "testContainerID",
-		Name:    "test",
-		Image:   Image{Name: "fold/test"},
+		ID:     "testContainerID",
+		Name:   "test",
+		Image:  Image{Name: "fold/test"},
 		Mounts: []Mount{{"foo", "bar"}},
 	}
 
@@ -115,9 +116,9 @@ func TestContainerRemoveFailure(t *testing.T) {
 	dc := NewMockDockerClient(ctrl)
 	rt := mockRuntime(dc)
 	con := &Container{
-		ID:      "testContainerID",
-		Name:    "test",
-		Image:   Image{Name: "fold/test"},
+		ID:     "testContainerID",
+		Name:   "test",
+		Image:  Image{Name: "fold/test"},
 		Mounts: []Mount{{"foo", "bar"}},
 	}
 
@@ -138,9 +139,9 @@ func TestContainerJoinAndLeaveNetwork(t *testing.T) {
 	rt := mockRuntime(dc)
 	net := &Network{Name: "testNet", ID: "testNetID"}
 	con := &Container{
-		Name:    "testCon",
-		ID:      "testConID",
-		Image:   Image{Name: "fold/test"},
+		Name:   "testCon",
+		ID:     "testConID",
+		Image:  Image{Name: "fold/test"},
 		Mounts: []Mount{{"foo", "bar"}},
 	}
 
@@ -163,9 +164,9 @@ func TestContainerJoinAndLeaveNetworkFailure(t *testing.T) {
 	rt := mockRuntime(dc)
 	net := &Network{Name: "testNet", ID: "testNetID"}
 	con := &Container{
-		Name:    "testCon",
-		ID:      "testConID",
-		Image:   Image{Name: "fold/test"},
+		Name:   "testCon",
+		ID:     "testConID",
+		Image:  Image{Name: "fold/test"},
 		Mounts: []Mount{{"foo", "bar"}},
 	}
 
@@ -211,21 +212,21 @@ func TestListAllFoldContainers(t *testing.T) {
 	}
 	expectation := []*Container{
 		{
-			ID:      "b",
-			Name:    "fold.foo",
-			Image:   Image{Name: "test"},
+			ID:     "b",
+			Name:   "fold.foo",
+			Image:  Image{Name: "test"},
 			Mounts: []Mount{Mount{"src", "dst"}},
 		},
 		{
-			ID:      "c",
-			Name:    "fold.bar",
-			Image:   Image{Name: "test"},
+			ID:     "c",
+			Name:   "fold.bar",
+			Image:  Image{Name: "test"},
 			Mounts: []Mount{Mount{"src", "dst"}},
 		},
 		{
-			ID:      "d",
-			Name:    "fold.baz",
-			Image:   Image{Name: "test"},
+			ID:     "d",
+			Name:   "fold.baz",
+			Image:  Image{Name: "test"},
 			Mounts: []Mount{Mount{"src", "dst"}},
 		},
 	}

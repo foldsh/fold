@@ -187,12 +187,11 @@ func (p *Project) gateway() *gateway.Gateway {
 }
 
 func (p *Project) startGateway(net *container.Network) error {
-	// TODO check if gateway exists and NOOP if it does
 	gw := p.gateway()
 	p.logger.Infof("Starting fold local gateway on port %d...", gw.Port)
-	if up, err := p.isGatewayUp(gw); err != nil {
+	if con, err := p.isGatewayUp(gw); err != nil {
 		return err
-	} else if up {
+	} else if con != nil {
 		p.logger.Infof("Gateway is already up, nothing to do.")
 		return nil
 	}
@@ -203,7 +202,6 @@ func (p *Project) startGateway(net *container.Network) error {
 		return fmt.Errorf("failed to pull image %s", imgName)
 	}
 	gwService := p.gatewayService(gw)
-	// TODO need to allow options to open port through image spec
 	err = gwService.Start(img, net)
 	if err != nil {
 		return err
@@ -214,32 +212,35 @@ func (p *Project) startGateway(net *container.Network) error {
 func (p *Project) stopGateway() error {
 	p.logger.Infof("Stopping fold local gateway...")
 	gw := p.gateway()
-	if up, err := p.isGatewayUp(gw); err != nil {
+	if con, err := p.isGatewayUp(gw); err != nil {
+		p.logger.Debugf("Failed to confirm if gateway is running: %v", err)
 		return err
-	} else if !up {
+	} else if con == nil {
 		p.logger.Infof("Gateway is not up, nothing to do.")
 		return nil
-	}
-	svc := p.gatewayService(gw)
-	if err := svc.Stop(); err != nil {
-		return err
+	} else {
+		if err := p.api.StopContainer(con); err != nil {
+			p.logger.Debugf("Failed to stop the gateway: %v", err)
+			return err
+		}
 	}
 	return nil
 }
 
-func (p *Project) isGatewayUp(gw *gateway.Gateway) (bool, error) {
+func (p *Project) isGatewayUp(gw *gateway.Gateway) (*container.Container, error) {
+	p.logger.Debugf("Checking if gateway is running")
 	svc := p.gatewayService(gw)
-	container, err := p.api.GetContainer(svc.containerName())
+	con, err := p.api.GetContainer(svc.containerName())
 	if err != nil {
 		p.logger.Debugf("Failed to check if gateway is already up: %v", err)
-		return false, err
+		return nil, err
 	}
-	if container == nil {
-		return false, nil
+	if con == nil {
+		return nil, nil
 	}
-	return true, nil
+	return con, nil
 }
 
 func (p *Project) gatewayService(gw *gateway.Gateway) *Service {
-	return &Service{Name: "foldgw", Project: p}
+	return &Service{Name: "foldgw", Project: p, Port: gw.Port}
 }

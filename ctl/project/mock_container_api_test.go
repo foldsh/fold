@@ -169,17 +169,17 @@ func (mr *MockContainerAPIMockRecorder) GetContainer(name interface{}) *gomock.C
 }
 
 // RunContainer mocks base method
-func (m *MockContainerAPI) RunContainer(con *container.Container) error {
+func (m *MockContainerAPI) RunContainer(net *container.Network, con *container.Container) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RunContainer", con)
+	ret := m.ctrl.Call(m, "RunContainer", net, con)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // RunContainer indicates an expected call of RunContainer
-func (mr *MockContainerAPIMockRecorder) RunContainer(con interface{}) *gomock.Call {
+func (mr *MockContainerAPIMockRecorder) RunContainer(net, con interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunContainer", reflect.TypeOf((*MockContainerAPI)(nil).RunContainer), con)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RunContainer", reflect.TypeOf((*MockContainerAPI)(nil).RunContainer), net, con)
 }
 
 // StopContainer mocks base method
@@ -194,32 +194,4 @@ func (m *MockContainerAPI) StopContainer(con *container.Container) error {
 func (mr *MockContainerAPIMockRecorder) StopContainer(con interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StopContainer", reflect.TypeOf((*MockContainerAPI)(nil).StopContainer), con)
-}
-
-// RemoveContainer mocks base method
-func (m *MockContainerAPI) RemoveContainer(con *container.Container) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveContainer", con)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RemoveContainer indicates an expected call of RemoveContainer
-func (mr *MockContainerAPIMockRecorder) RemoveContainer(con interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveContainer", reflect.TypeOf((*MockContainerAPI)(nil).RemoveContainer), con)
-}
-
-// AddToNetwork mocks base method
-func (m *MockContainerAPI) AddToNetwork(n *container.Network, con *container.Container) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddToNetwork", n, con)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AddToNetwork indicates an expected call of AddToNetwork
-func (mr *MockContainerAPIMockRecorder) AddToNetwork(n, con interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddToNetwork", reflect.TypeOf((*MockContainerAPI)(nil).AddToNetwork), n, con)
 }

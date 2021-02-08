@@ -8,7 +8,9 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/go-connections/nat"
 )
 
 var (
@@ -28,10 +30,12 @@ var (
 // A very simple struct for representing the functionality we actually
 // need to expose from here.
 type Container struct {
-	ID     string
-	Name   string
-	Image  Image
-	Mounts []Mount
+	ID           string
+	Name         string
+	NetworkAlias string
+	Image        Image
+	Ports        []int
+	Mounts       []Mount
 }
 
 type Mount struct {
@@ -67,10 +71,41 @@ func (cr *ContainerRuntime) GetContainer(name string) (*Container, error) {
 	return nil, nil
 }
 
-func (cr *ContainerRuntime) RunContainer(con *Container) error {
-	resp, err := cr.cli.ContainerCreate(cr.ctx, &container.Config{
-		Image: con.Image.Name,
-	}, nil, nil, nil, con.Name)
+func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
+	cr.logger.Debugf("Building container %v in network %v", con, net)
+	portBindings := map[nat.Port][]nat.PortBinding{}
+	for _, p := range con.Ports {
+		port := nat.Port(fmt.Sprintf("%d/tcp", p))
+		binding := []nat.PortBinding{
+			{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", p)},
+		}
+		portBindings[port] = binding
+	}
+	var mounts []mount.Mount
+	for _, m := range con.Mounts {
+		mounts = append(mounts, mount.Mount{Source: m.Src, Target: m.Dst})
+	}
+	resp, err := cr.cli.ContainerCreate(
+		cr.ctx,
+		&container.Config{
+			Image: con.Image.Name,
+		},
+		&container.HostConfig{
+			PortBindings: portBindings,
+			Mounts:       mounts,
+			// TODO make auto removing containers configurable
+			AutoRemove: true,
+		},
+		&network.NetworkingConfig{
+			EndpointsConfig: map[string]*network.EndpointSettings{
+				net.Name: &network.EndpointSettings{
+					Aliases: []string{con.NetworkAlias},
+				},
+			},
+		},
+		nil,
+		con.Name,
+	)
 	if err != nil {
 		cr.logger.Debugf("Failed to create container: %v", err)
 		return FailedToCreateContainer
@@ -92,13 +127,19 @@ func (cr *ContainerRuntime) StopContainer(con *Container) error {
 
 func (cr *ContainerRuntime) RemoveContainer(con *Container) error {
 	if err := cr.cli.ContainerRemove(cr.ctx, con.ID, types.ContainerRemoveOptions{}); err != nil {
+		cr.logger.Debugf("Failed to remove the container %s: %v", con.Name, err)
 		return FailedToRemoveContainer
 	}
 	return nil
 }
 
 func (cr *ContainerRuntime) AddToNetwork(n *Network, con *Container) error {
-	err := cr.cli.NetworkConnect(cr.ctx, n.ID, con.ID, &network.EndpointSettings{})
+	err := cr.cli.NetworkConnect(
+		cr.ctx,
+		n.ID,
+		con.ID,
+		&network.EndpointSettings{Aliases: []string{con.NetworkAlias}},
+	)
 	if err != nil {
 		return FailedToJoinNetwork
 	}
@@ -135,12 +176,7 @@ func (cr *ContainerRuntime) listContainers() ([]*Container, error) {
 				}
 				foldContainers = append(
 					foldContainers,
-					&Container{
-						ID:     c.ID,
-						Name:   name,
-						Image:  Image{Name: c.Image},
-						Mounts: mounts,
-					},
+					&Container{ID: c.ID, Name: name, Image: Image{Name: c.Image}, Mounts: mounts},
 				)
 			}
 		}
