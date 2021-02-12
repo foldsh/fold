@@ -13,8 +13,15 @@ define tag-image
 	docker tag $(1):latest foldsh/$(1):$(2)
 endef
 
-define build-release
+define build-release-linux
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin/$(1)/$(1) ./cmd/$(1)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin/release/$(1)/$(1)-$(VERSION)-linux-amd64 ./cmd/$(1)
+	tar czvf bin/release/$(1)/$(1)-$(VERSION)-linux-amd64.tar.gz bin/release/$(1)/$(1)-$(VERSION)-linux-amd64
+endef
+
+define build-release-darwin
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s" -o bin/release/$(1)/$(1)-$(VERSION)-darwin-amd64 ./cmd/$(1)
+	tar czvf bin/release/$(1)/$(1)-$(VERSION)-darwin-amd64.tar.gz bin/release/$(1)/$(1)-$(VERSION)-darwin-amd64
 endef
 
 install:
@@ -31,7 +38,7 @@ foldgw: bin
 .PHONY: foldgw
 
 foldgw-release: bin
-	$(call build-release,foldgw)
+	$(call build-release-linux,foldgw)
 .PHONY: foldgw
 
 foldgw-image: foldgw-release
@@ -45,7 +52,8 @@ foldrt: bin
 .PHONY: foldrt
 
 foldrt-release: bin
-	$(call build-release,foldrt)
+	$(call build-release-linux,foldrt)
+	$(call build-release-darwin,foldrt)
 .PHONY: foldrt-image
 
 foldrt-image: foldrt-release
@@ -63,7 +71,8 @@ foldctl: bin
 .PHONY: foldctl
 
 foldctl-release: bin
-	$(call build-release,foldctl)
+	$(call build-release-linux,foldctl)
+	$(call build-release-darwin,foldctl)
 .PHONY: foldctl-release
 
 protoc:
