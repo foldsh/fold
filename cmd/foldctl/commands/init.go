@@ -36,6 +36,7 @@ The command will start a series of prompts to guide you through the set up proce
 			Repository: repo,
 			Services:   []*project.Service{},
 		}
+		p.ConfigureLogger(logger)
 		saveProjectConfig(p)
 	},
 }

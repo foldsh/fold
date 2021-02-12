@@ -8,15 +8,25 @@ import (
 )
 
 func main() {
-	logger, err := logging.NewLogger(logging.Debug, false)
+	var (
+		logger logging.Logger
+		err    error
+	)
+	stage := os.Getenv("FOLD_STAGE")
+
+	if stage == "TEST" {
+		logger, err = logging.NewLogger(logging.Debug, true)
+	} else if stage == "PROD" {
+		logger, err = logging.NewLogger(logging.Info, true)
+	} else {
+		logger, err = logging.NewLogger(logging.Debug, false)
+	}
+	logger.Debug("starting fold runtime for stage ", stage)
+
 	if err != nil {
 		panic("failed to start logger")
 	}
+
 	env := os.Getenv("FOLD_ENV")
-	switch env {
-	case "LAMBDA":
-		runtime.Lambda(logger, os.Args[1], os.Args[2:]...)
-	default:
-		runtime.HTTP(logger, os.Args[1], os.Args[2:]...)
-	}
+	runtime.Run(logger, env, stage, os.Args[1], os.Args[2:]...)
 }

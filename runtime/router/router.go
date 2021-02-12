@@ -28,7 +28,7 @@ type RequestDoer interface {
 // from the service, making it a parameter gives some more options about
 // how and when we acquire one.
 func NewRouter(logger logging.Logger, doer RequestDoer) Router {
-	return &foldRouter{logger: logger, doer: doer}
+	return &foldRouter{logger: logger, doer: doer, router: newRouter()}
 }
 
 type foldRouter struct {
@@ -48,9 +48,7 @@ func (fr *foldRouter) DoRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (fr *foldRouter) Configure(m *manifest.Manifest) {
-	router := httprouter.New()
-	router.NotFound = http.HandlerFunc(notFound)
-	router.MethodNotAllowed = http.HandlerFunc(notAllowed)
+	router := newRouter()
 	for _, route := range m.Routes {
 		router.Handle(
 			route.HttpMethod.String(),
@@ -59,6 +57,13 @@ func (fr *foldRouter) Configure(m *manifest.Manifest) {
 		)
 	}
 	fr.router = router
+}
+
+func newRouter() *httprouter.Router {
+	router := httprouter.New()
+	router.NotFound = http.HandlerFunc(notFound)
+	router.MethodNotAllowed = http.HandlerFunc(notAllowed)
+	return router
 }
 
 func (fr *foldRouter) makeHandler(route *manifest.Route) httprouter.Handle {
@@ -136,5 +141,9 @@ func notAllowed(w http.ResponseWriter, r *http.Request) {
 }
 
 func unsupportedMediaType(w http.ResponseWriter, r *http.Request) {
-	httpError(w, http.StatusUnsupportedMediaType, `{"title":"Content-Type must be application/json"}`)
+	httpError(
+		w,
+		http.StatusUnsupportedMediaType,
+		`{"title":"Content-Type must be application/json"}`,
+	)
 }

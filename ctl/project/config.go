@@ -2,7 +2,6 @@ package project
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 
 	"github.com/foldsh/fold/logging"
@@ -10,8 +9,8 @@ import (
 )
 
 // Looks for fold.yaml in the current directory and loads it.
-func load(logger logging.Logger, searchPaths []string) (*Project, error) {
-	v := newViper(searchPaths)
+func load(logger logging.Logger, location string) (*Project, error) {
+	v := newViper(location)
 	var fileNotFound viper.ConfigFileNotFoundError
 	err := v.ReadInConfig()
 	if err != nil {
@@ -35,35 +34,30 @@ func load(logger logging.Logger, searchPaths []string) (*Project, error) {
 	}
 	p.logger = logger
 	for _, s := range p.Services {
-		s.Project = p
+		s.project = p
 	}
 	return p, nil
 }
 
-func saveConfig(p *Project, to []string) error {
+func saveConfig(p *Project, to string) error {
 	v := newViper(to)
 	v.Set("name", p.Name)
 	v.Set("maintainer", p.Maintainer)
 	v.Set("email", p.Email)
 	v.Set("repository", p.Repository)
 	v.Set("services", p.Services)
-	for _, path := range to {
-		err := v.WriteConfigAs(filepath.Join(path, "fold.yaml"))
-		if err != nil {
-			fmt.Printf("%v", err)
-			return CantWriteConfig
-		}
+	if err := v.WriteConfigAs(filepath.Join(to, "fold.yaml")); err != nil {
+		p.logger.Debugf("Failed to write config %+v", err)
+		return CantWriteConfig
 	}
 	return nil
 }
 
-func newViper(searchPaths []string) *viper.Viper {
+func newViper(configPath string) *viper.Viper {
 	v := viper.New()
+	v.AddConfigPath(configPath)
 	v.SetConfigName("fold")
 	v.SetConfigType("yaml")
-	for _, path := range searchPaths {
-		v.AddConfigPath(path)
-	}
 	return v
 }
 

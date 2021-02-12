@@ -11,6 +11,7 @@ import (
 
 	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/fs"
+	"github.com/foldsh/fold/version"
 )
 
 var (
@@ -80,7 +81,7 @@ func writeDefaultConfig(path string) error {
 	writer.AddConfigPath(path)
 	writer.SetConfigName("config")
 	writer.SetConfigType("yaml")
-	writer.Set("version", ctl.FoldctlVersion.String())
+	writer.Set("version", version.FoldVersion.String())
 	writer.Set("name", "")
 	writer.Set("email", "")
 	writer.Set("access-token", "")

@@ -17,8 +17,6 @@ var (
 	DockerEngineError                  = errors.New("failed to connect to docker engine")
 	FailedToConnectToDockerEngineError = errors.New("failed to connect to docker engine")
 	FailedToPrepareBuildArchive        = errors.New("failed to prepare the build archive")
-	FailedToBuildImage                 = errors.New("failed to build the image")
-	FailedToPullImage                  = errors.New("failed to pull the image")
 	FailedToCreateContainer            = errors.New("failed to create the container")
 	FailedToStartContainer             = errors.New("failed to start the container")
 	FailedToStopContainer              = errors.New("failed to stop the container")
@@ -75,19 +73,33 @@ func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
 	cr.logger.Debugf("Building container %v in network %v", con, net)
 	portBindings := map[nat.Port][]nat.PortBinding{}
 	for _, p := range con.Ports {
-		port := nat.Port(fmt.Sprintf("%d/tcp", p))
 		binding := []nat.PortBinding{
 			{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", p)},
 		}
-		portBindings[port] = binding
+		portBindings[nat.Port("8080/tcp")] = binding
 	}
 	var mounts []mount.Mount
 	for _, m := range con.Mounts {
-		mounts = append(mounts, mount.Mount{Source: m.Src, Target: m.Dst})
+		mounts = append(mounts, mount.Mount{
+			// Type:   mount.TypeVolume,
+			Type:   mount.TypeBind,
+			Source: m.Src,
+			Target: m.Dst,
+		})
+	}
+	var watchDir string
+	if len(mounts) > 0 {
+		watchDir = mounts[0].Target
 	}
 	resp, err := cr.cli.ContainerCreate(
 		cr.ctx,
-		&container.Config{Image: con.Image.Name},
+		&container.Config{
+			Image: con.Image.Name,
+			Env: []string{
+				"FOLD_STAGE=LOCAL",
+				fmt.Sprintf("FOLD_WATCH_DIR=%s", watchDir),
+			},
+		},
 		// TODO make auto removing containers configurable
 		&container.HostConfig{PortBindings: portBindings, Mounts: mounts, AutoRemove: true},
 		&network.NetworkingConfig{

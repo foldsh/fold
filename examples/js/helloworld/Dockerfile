@@ -1,1 +1,0 @@
-FROM foldrt:node-alpine

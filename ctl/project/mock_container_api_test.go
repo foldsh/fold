@@ -105,19 +105,34 @@ func (mr *MockContainerAPIMockRecorder) RemoveNetwork(net interface{}) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveNetwork", reflect.TypeOf((*MockContainerAPI)(nil).RemoveNetwork), net)
 }
 
-// PullImage mocks base method
-func (m *MockContainerAPI) PullImage(img string) (*container.Image, error) {
+// GetImage mocks base method
+func (m *MockContainerAPI) GetImage(name string) (*container.Image, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "PullImage", img)
+	ret := m.ctrl.Call(m, "GetImage", name)
+	ret0, _ := ret[0].(*container.Image)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetImage indicates an expected call of GetImage
+func (mr *MockContainerAPIMockRecorder) GetImage(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetImage", reflect.TypeOf((*MockContainerAPI)(nil).GetImage), name)
+}
+
+// PullImage mocks base method
+func (m *MockContainerAPI) PullImage(name string) (*container.Image, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PullImage", name)
 	ret0, _ := ret[0].(*container.Image)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // PullImage indicates an expected call of PullImage
-func (mr *MockContainerAPIMockRecorder) PullImage(img interface{}) *gomock.Call {
+func (mr *MockContainerAPIMockRecorder) PullImage(name interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullImage", reflect.TypeOf((*MockContainerAPI)(nil).PullImage), img)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PullImage", reflect.TypeOf((*MockContainerAPI)(nil).PullImage), name)
 }
 
 // BuildImage mocks base method

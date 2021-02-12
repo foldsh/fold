@@ -14,8 +14,16 @@ import (
 	"github.com/foldsh/fold/ctl/project"
 )
 
+func projectHome() string {
+	s, err := project.Home()
+	if err != nil {
+		exitWithErr(err)
+	}
+	return s
+}
+
 func loadProject() *project.Project {
-	p, err := project.Load(logger)
+	p, err := project.Load(logger, projectHome())
 	if err != nil {
 		if errors.Is(err, project.NotAFoldProject) {
 			exitWithMessage(
@@ -47,7 +55,7 @@ func loadProjectWithRuntime(out *streamLinePrefixer) *project.Project {
 }
 
 func saveProjectConfig(p *project.Project) {
-	err := p.SaveConfig()
+	err := p.SaveConfig(projectHome())
 	exitIfErr(
 		err,
 		"Failed to save fold config.",

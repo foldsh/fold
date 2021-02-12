@@ -81,10 +81,12 @@ The templates are all availble at https://github.com/foldsh/templates.`,
 		}
 
 		// Create the path to the new service.
+		logger.Debugf("Creating service directory")
 		err = os.MkdirAll(absPath, DIR_PERMISSIONS)
 		exitIfErr(err, "Failed to create a directory at the path you specified.", checkPermissions)
 
 		// Copy the contents of the chosen template into the new directory.
+		logger.Debugf("Copying project template to service directory")
 		err = fs.CopyDir(selectedTemplate, absPath)
 		if err != nil {
 			os.RemoveAll(absPath)
@@ -95,14 +97,16 @@ The templates are all availble at https://github.com/foldsh/templates.`,
 		}
 
 		// Update the project config
+		logger.Debugf("Adding service to project")
 		p.AddService(service)
+		logger.Debugf("Saving project config")
 		saveProjectConfig(p)
 	},
 }
 
 func updateTemplates() {
 	// Get or update the templates.
-	print("Updating the templates repository...")
+	logger.Infof("Updating the templates repository...")
 	out := newStreamLinePrefixer(serr, blue("git: "))
 	err := git.UpdateTemplates(out, foldTemplates)
 	exitIfErr(err, `Failed to update the template repository.
@@ -118,6 +122,7 @@ func validateTemplate(template, language string) string {
 	if err != nil {
 		if os.IsNotExist(err) {
 			// directory does not exist
+			logger.Debugf("template does not exist")
 			msg := fmt.Sprintf(`The specified template %s/%s does not exist.
 Check the fold templates repository for available templates.
 You can find a link to the repository in the help for this command, run:
@@ -126,6 +131,7 @@ foldctl new --help`, template, language)
 			exitWithMessage(msg)
 		} else {
 			// other error
+			logger.Debugf("unexpected error")
 			exitWithMessage("Failed to validate the template specified.", thisIsABug)
 		}
 	}

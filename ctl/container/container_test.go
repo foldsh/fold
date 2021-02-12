@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 
@@ -25,14 +26,16 @@ func TestContainerStartAndStop(t *testing.T) {
 	rt := mockRuntime(dc)
 	con := &Container{
 		Name:   "test",
-		Image:  Image{Name: "fold/test"},
+		Image:  Image{Name: "fold/test", WorkDir: "/fold"},
 		Mounts: []Mount{{"foo", "bar"}},
 	}
-
 	dc.
 		EXPECT().
 		ContainerCreate(
-			any, &container.Config{Image: "fold/test"}, any, any, any, "test",
+			any, &container.Config{Image: "fold/test", Env: []string{
+				"FOLD_STAGE=LOCAL",
+				fmt.Sprintf("FOLD_WATCH_DIR=%s", con.Mounts[0].Dst),
+			}}, any, any, any, "test",
 		).
 		Return(container.ContainerCreateCreatedBody{ID: "testContainerID"}, nil)
 	dc.

@@ -12,11 +12,27 @@ import (
 )
 
 type DockerClient interface {
+	ImagePull(
+		ctx context.Context,
+		ref string,
+		options types.ImagePullOptions,
+	) (io.ReadCloser, error)
+
+	ImageList(
+		ctx context.Context,
+		options types.ImageListOptions,
+	) ([]types.ImageSummary, error)
+
 	ImageBuild(
 		ctx context.Context,
 		buildContext io.Reader,
 		options types.ImageBuildOptions,
 	) (types.ImageBuildResponse, error)
+
+	ImageInspectWithRaw(
+		ctx context.Context,
+		imageID string,
+	) (types.ImageInspect, []byte, error)
 
 	NetworkCreate(
 		ctx context.Context,
@@ -47,12 +63,6 @@ type DockerClient interface {
 		containerID string,
 		force bool,
 	) error
-
-	ImagePull(
-		ctx context.Context,
-		ref string,
-		options types.ImagePullOptions,
-	) (io.ReadCloser, error)
 
 	ContainerCreate(
 		ctx context.Context,

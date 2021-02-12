@@ -26,7 +26,7 @@ type ingressClient struct {
 
 // Creates a new `IngressClient`. The `foldSockAddr` should be a complete
 // file path and it should match the one used to start the server.
-func newIngressClient(foldSockAddr string, logger logging.Logger) *ingressClient {
+func newIngressClient(logger logging.Logger, foldSockAddr string) *ingressClient {
 	return &ingressClient{foldSockAddr: foldSockAddr, logger: logger}
 }
 

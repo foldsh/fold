@@ -59,7 +59,14 @@ func TestProjectConfigValidation(t *testing.T) {
 	s := `name: blah
 maintainer: blah
 email: blah
-repository: blah`
+repository: blah
+services:
+- name: blah
+  path: ./blah
+  mounts:
+  - ./foo
+  - ./bar
+`
 	err = ioutil.WriteFile(cfgPath, []byte(s), 0644)
 	if err != nil {
 		t.Fatalf("Failed to write to config file.")
@@ -73,6 +80,13 @@ repository: blah`
 		Maintainer: "blah",
 		Email:      "blah",
 		Repository: "blah",
+		Services: []*project.Service{
+			{
+				Name:   "blah",
+				Path:   "./blah",
+				Mounts: []string{"./foo", "./bar"},
+			},
+		},
 	}
 	diffConfig(t, expectation, cfg)
 }
@@ -92,13 +106,60 @@ func TestProjectLoadingAndSaving(t *testing.T) {
 		Email:      "tom@tom.com",
 		Repository: "github.com/tom",
 		Services: []*project.Service{
-			&project.Service{Name: "a", Path: "a"},
+			&project.Service{
+				Name:   "a",
+				Path:   "a",
+				Mounts: []string{"./foo", "./baz"},
+			},
 		},
 	}
 	p.SaveConfig(dir)
-
 	loaded, err := project.Load(logger, dir)
 	diffConfig(t, p, loaded)
+}
+
+func TestProjectAddService(t *testing.T) {
+	logger := logging.NewTestLogger()
+	dir, err := ioutil.TempDir("", "testProjectAddService")
+	if err != nil {
+		fmt.Printf("%+v", err)
+		t.Fatal("Failed to create temporary test directory")
+	}
+	defer os.RemoveAll(dir)
+
+	p := &project.Project{
+		Name:       "foo",
+		Maintainer: "tom",
+		Email:      "tom@tom.com",
+		Repository: "github.com/tom",
+		Services: []*project.Service{
+			&project.Service{
+				Name:   "a",
+				Path:   "a",
+				Mounts: []string{"./a", "./b"},
+			},
+		},
+	}
+	p.ConfigureLogger(logger)
+	if err := p.SaveConfig(dir); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	p.AddService(project.Service{
+		Name:   "foo",
+		Path:   "bar",
+		Mounts: []string{"./foo", "./bar"},
+	})
+
+	if err := p.SaveConfig(dir); err != nil {
+		t.Fatalf("%+v", err)
+	}
+
+	if loaded, err := project.Load(logger, dir); err != nil {
+		t.Fatalf("%+v", err)
+	} else {
+		diffConfig(t, p, loaded)
+	}
 }
 
 func TestProjectServiceUtils(t *testing.T) {
@@ -148,7 +209,6 @@ func diffConfig(t *testing.T, expectation, actual interface{}) {
 		expectation,
 		actual,
 		cmpopts.IgnoreUnexported(project.Service{}, project.Project{}),
-		cmpopts.IgnoreFields(project.Service{}, "Project"),
 	); diff != "" {
 		t.Errorf("Expected loaded config to equal input (-want +got):\n%s", diff)
 	}

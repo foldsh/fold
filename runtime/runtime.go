@@ -11,64 +11,118 @@ import (
 	"github.com/foldsh/fold/runtime/handler"
 	"github.com/foldsh/fold/runtime/router"
 	"github.com/foldsh/fold/runtime/supervisor"
+	"github.com/foldsh/fold/runtime/watcher"
 )
 
-var rt *runtime
+var (
+	loggr logging.Logger
+	env   string
+	stage string
+	suprv *supervisor.Supervisor
+	mnfst *manifest.Manifest
+	routr router.Router
+	hndlr Handler
+)
 
-func HTTP(logger logging.Logger, command string, args ...string) {
+type Handler interface {
+	Serve()
+}
+
+func Run(logger logging.Logger, env string, stage string, command string, args ...string) {
+	// TODO this is optimised for local development... it's a bit convoluted but
+	// it basically tries really hard to always be available. This is so that
+	// the app doesn't constantly crash for local development when errors are common.
+	// Ideally an error should just result in a helpful message and then as soon as
+	// the fix is written to disk we try to load the server again.
+	// For deployment purposes though, whether to a test or prodution environment,
+	// it would be much better to have the whole thing just fail as fast as possible.
+	// I'll split this up into two mains I think to accomplish this.
 	start := time.Now()
-	rt = initRuntime(logger, command, args...)
-	rt.handler = handler.NewHTTP(logger, rt.router, ":8080")
+	loggr = logger
+	env = env
+	stage = stage
+	suprv = supervisor.NewSupervisor(loggr, command, args...)
+	routr = router.NewRouter(loggr, suprv)
+
+	// Start watching for file change immediately so that we can recover from
+	// someone overwriting the command by binding an empty directory.
+	if stage == "LOCAL" {
+		setupHotReload()
+	}
+
+	registerSignalHandlers()
+
+	// Setup handler
+	switch env {
+	case "LAMBDA":
+		hndlr = handler.NewLambda(loggr, routr)
+	default:
+		hndlr = handler.NewHTTP(loggr, routr, ":8080")
+	}
+	go func() {
+		// We start the handler in a goroutine like this to ensure that
+		// it always comes up and is responsive.
+		hndlr.Serve()
+	}()
+
+	// Start supervisor
+	loggr.Debugf("starting supervisor")
+	err := suprv.Start()
+	if err != nil {
+		loggr.Fatalf("supervisor failed to start process")
+	}
+
+	fetchManifestAndConfigureRouter()
+
 	elapsed := time.Since(start)
-	logger.Infof("ready to accept requests, startup took %s", elapsed)
-	rt.Start()
+	loggr.Infof("ready to accept requests, startup took %s", elapsed)
+	done := make(chan struct{})
+	<-done
 }
 
-func Lambda(logger logging.Logger, command string, args ...string) {
-	rt = initRuntime(logger, command, args...)
-	rt.handler = handler.NewLambda(logger, rt.router)
-	rt.Start()
-}
-
-type runtime struct {
-	logger   logging.Logger
-	superv   supervisor.Supervisor
-	manifest *manifest.Manifest
-	router   router.Router
-	handler  handler.Handler
-}
-
-func initRuntime(logger logging.Logger, command string, args ...string) *runtime {
-	superv := supervisor.NewSupervisor(logger)
-	err := superv.Exec(command, args...)
-	if err != nil {
-		logger.Fatalf("supervisor failed to start subprocess")
-	}
-	manifest, err := superv.GetManifest()
-	if err != nil {
-		logger.Debug("error", err)
-		logger.Fatalf("failed to fetch manifest")
-	}
-	router := router.NewRouter(logger, superv)
-	router.Configure(manifest)
-	return &runtime{logger: logger, superv: superv, manifest: manifest, router: router}
-}
-
-func (r *runtime) Start() {
-	r.registerSignalHandlers()
-	r.handler.Serve()
-}
-
-func (r *runtime) registerSignalHandlers() {
+func registerSignalHandlers() {
+	loggr.Debugf("registering signal handlers")
 	c := make(chan os.Signal)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		s := <-c
-		err := r.superv.Signal(s)
+		err := suprv.Signal(s)
 		if err != nil {
 			os.Exit(1)
 		} else {
 			os.Exit(0)
 		}
 	}()
+}
+
+func fetchManifestAndConfigureRouter() {
+	loggr.Debugf("fetching manifest")
+	mnfst, err := suprv.GetManifest()
+	if err != nil {
+		loggr.Fatalf("failed to fetch manifest")
+	}
+	loggr.Debugf("router is %+v", routr)
+	routr.Configure(mnfst)
+}
+
+func setupHotReload() {
+	watchdir := os.Getenv("FOLD_WATCH_DIR")
+	loggr.Debugf("watching for changes in %s", watchdir)
+	if watchdir == "" {
+		return
+	}
+	reloadFn := func() {
+		if err := suprv.Restart(); err != nil {
+			loggr.Fatalf("failed to restart")
+		}
+		fetchManifestAndConfigureRouter()
+	}
+	debouncer := watcher.NewDebouncer(100*time.Millisecond, reloadFn)
+	watcher, err := watcher.NewWatcher(loggr, watchdir, debouncer.OnChange)
+	if err != nil {
+		loggr.Fatalf("failed to setup hot reloading")
+	}
+	if err := watcher.Watch(); err != nil {
+		loggr.Fatalf("failed to setup hot reloading")
+	}
 }

@@ -8,27 +8,27 @@ import (
 	"io"
 	"os"
 	"os/exec"
+
+	"github.com/foldsh/fold/logging"
 )
 
 type subprocess struct {
+	logger       logging.Logger
 	foldSockAddr string
 	cmd          *exec.Cmd
 	sout         io.Writer
 	serr         io.Writer
+	terminated   chan error
+	health       bool
 }
 
-/*
-We want to be able to hide this behind something so that we can completely
-swap the subprocess out for the threaded version in a test.
-
-why can't we d
-*/
-
-func newSubprocess(foldSockAddr string) *subprocess {
+func newSubprocess(logger logging.Logger, foldSockAddr string) foldSubprocess {
 	return &subprocess{
+		logger:       logger,
 		foldSockAddr: foldSockAddr,
 		sout:         os.Stdout,
 		serr:         os.Stderr,
+		terminated:   make(chan error),
 	}
 }
 
@@ -41,30 +41,58 @@ func (sp *subprocess) run(cmd string, args ...string) error {
 		fmt.Sprintf("FOLD_SOCK_ADDR=%s", sp.foldSockAddr),
 	)
 	sp.cmd = c
-	if err := sp.cmd.Start(); err != nil {
-		return errors.New("failed to start subprocess")
-	}
+	sp.health = true
+	go func() {
+		if err := sp.cmd.Run(); err != nil {
+			sp.logger.Debugf("Process has exited, determining cause")
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				if exitErr.ExitCode() == -1 {
+					// terminated by a signal, this is expected
+					sp.logger.Debugf("The process was ended by a signal")
+					sp.terminated <- nil
+				} else {
+					sp.logger.Debugf("The process ended unexpectedly %+v", err)
+					sp.terminated <- err
+				}
+			} else {
+				sp.logger.Debugf("The process ended unexpectedly %+v", err)
+				sp.terminated <- err
+			}
+		} else {
+			sp.terminated <- nil
+			sp.health = false
+		}
+	}()
 	return nil
 }
 
 func (sp *subprocess) wait() error {
-	if err := sp.cmd.Wait(); err != nil {
-		return errors.New("failed to wait for subprocess")
-	}
-	return nil
+	sp.logger.Debugf("Waiting for process to terminate")
+	err := <-sp.terminated
+	return err
 }
 
 func (sp *subprocess) kill() error {
+	sp.logger.Debugf("Killing subprocess")
 	if err := sp.cmd.Process.Kill(); err != nil {
+		sp.logger.Debugf("%+v", err)
 		return errors.New("failed to kill subprocess")
 	}
 	return nil
 }
 
-// TODO handle shut down on signal: Just SIGTERM is fine for now.
 func (sp *subprocess) signal(sig os.Signal) error {
-	if err := sp.cmd.Process.Signal(sig); err != nil {
-		return errors.New("failed to send signal")
+	sp.logger.Debugf("Sending signal %v to subprocess", sig)
+	if sp.cmd.Process != nil {
+		if err := sp.cmd.Process.Signal(sig); err != nil {
+			sp.logger.Debugf("%+v", err)
+			return errors.New("failed to send signal")
+		}
 	}
 	return nil
+}
+
+func (sp *subprocess) healthz() bool {
+	return sp.health
 }

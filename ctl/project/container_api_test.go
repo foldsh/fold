@@ -58,7 +58,7 @@ func TestProjectWorkflow(t *testing.T) {
 				CreateNetwork(net)
 
 			// Should start the gateway
-			gwSvc := &project.Service{Name: "foldgw", Project: proj}
+			gwSvc := proj.NewService("foldgw")
 			gwImgName := (&gateway.Gateway{}).ImageName()
 			gwImg := &container.Image{Name: gwImgName}
 			gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
@@ -67,6 +67,10 @@ func TestProjectWorkflow(t *testing.T) {
 			api.
 				EXPECT().
 				GetContainer(gwContainerName).
+				Return(nil, nil)
+			api.
+				EXPECT().
+				GetImage(gwImgName).
 				Return(nil, nil)
 			api.
 				EXPECT().
@@ -87,7 +91,7 @@ func TestProjectWorkflow(t *testing.T) {
 					t.Errorf("failed to get service abs path %v", err)
 				}
 				img := &container.Image{
-					Name: fmt.Sprintf("foldlocal/%s/%s", svc.Id(), svc.Name),
+					Name: fmt.Sprintf("foldlocal/%s/%s:latest", svc.Id(), svc.Name),
 					Src:  path,
 				}
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
@@ -154,8 +158,11 @@ func TestUpDoesntDuplicateResources(t *testing.T) {
 	defer ctrl.Finish()
 	api := NewMockContainerAPI(ctrl)
 
-	svc := &project.Service{Name: "one", Path: "./one"}
-	proj := makeProject("one-service", svc)
+	proj := makeProject("one-service", &project.Service{Name: "one", Path: "./one"})
+	svc, err := proj.GetService("./one")
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
 	proj.ConfigureContainerAPI(api)
 	proj.ConfigureLogger(logging.NewTestLogger())
 
@@ -171,7 +178,7 @@ func TestUpDoesntDuplicateResources(t *testing.T) {
 		NetworkExists(net).
 		Return(true, nil)
 	// Should reuse gateway
-	gwSvc := &project.Service{Name: "foldgw", Project: proj}
+	gwSvc := proj.NewService("foldgw")
 	gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
 	gwContainer := &container.Container{ID: fmt.Sprintf("%d", 0), Name: gwContainerName}
 	api.
@@ -186,7 +193,7 @@ func TestUpDoesntDuplicateResources(t *testing.T) {
 		EXPECT().
 		GetContainer(containerName).
 		Return(container, nil)
-	err := proj.Up(context.Background(), &bytes.Buffer{}, svc)
+	err = proj.Up(context.Background(), &bytes.Buffer{}, svc)
 	if err != nil {
 		t.Errorf("expected no error but found %v", err)
 	}
@@ -196,8 +203,10 @@ func makeProject(name string, services ...*project.Service) *project.Project {
 	p := &project.Project{
 		Name: name,
 	}
-	for _, svc := range services {
-		svc.Project = p
+	p.ConfigureLogger(logging.NewTestLogger())
+	for _, s := range services {
+		svc := p.NewService(s.Name)
+		svc.Port = s.Port
 		p.Services = append(p.Services, svc)
 	}
 	return p

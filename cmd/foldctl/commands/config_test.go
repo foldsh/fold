@@ -10,6 +10,7 @@ import (
 
 	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/internal/testutils"
+	"github.com/foldsh/fold/version"
 )
 
 func TestLoadCtlConfig(t *testing.T) {
@@ -47,8 +48,8 @@ func TestConfigCreatedIfNotPresent(t *testing.T) {
 		t.Fatal("Failed to create default config")
 	}
 
-	if viper.Get("version") != ctl.FoldctlVersion.String() {
-		t.Fatalf("Expected '%s' but found %s", ctl.FoldctlVersion.String(), viper.Get("version"))
+	if viper.Get("version") != version.FoldVersion.String() {
+		t.Fatalf("Expected '%s' but found %s", version.FoldVersion.String(), viper.Get("version"))
 	}
 	if viper.Get("name") != "" {
 		t.Fatalf("Expected '' but found %s", viper.Get("name"))

@@ -17,16 +17,16 @@ type HTTPRequestDoer interface {
 	DoRequest(http.ResponseWriter, *http.Request)
 }
 
-func NewLambda(logger logging.Logger, doer HTTPRequestDoer) Handler {
-	return &lambdaHandler{logger, doer}
+func NewLambda(logger logging.Logger, doer HTTPRequestDoer) *LambdaHandler {
+	return &LambdaHandler{logger, doer}
 }
 
-type lambdaHandler struct {
+type LambdaHandler struct {
 	logger logging.Logger
 	doer   HTTPRequestDoer
 }
 
-func (lh *lambdaHandler) Handle(
+func (lh *LambdaHandler) Handle(
 	ctx context.Context,
 	e events.APIGatewayProxyRequest,
 ) (events.APIGatewayProxyResponse, error) {
@@ -39,7 +39,11 @@ func (lh *lambdaHandler) Handle(
 			Body:       `{"title":"Failed to parse path"}`,
 		}, err
 	}
-	req, err := http.NewRequest(e.HTTPMethod, url.String(), ioutil.NopCloser(strings.NewReader(e.Body)))
+	req, err := http.NewRequest(
+		e.HTTPMethod,
+		url.String(),
+		ioutil.NopCloser(strings.NewReader(e.Body)),
+	)
 	if err != nil {
 		lh.logger.Errorf("failed to translate gateway request")
 		return events.APIGatewayProxyResponse{
@@ -56,7 +60,7 @@ func (lh *lambdaHandler) Handle(
 	return res.toAPIGatewayResponse(), nil
 }
 
-func (lh *lambdaHandler) Serve() {
+func (lh *LambdaHandler) Serve() {
 	lambda.Start(lh.Handle)
 }
 

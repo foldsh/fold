@@ -19,16 +19,11 @@ var (
 )
 
 type Service struct {
-	Name    string  `mapstructure:"name"`
-	Path    string  `mapstructure:"path"`
-	Mounts  []Mount `mapstructure:"mounts"`
+	Name    string   `mapstructure:"name"`
+	Path    string   `mapstructure:"path"`
+	Mounts  []string `mapstructure:"mounts"`
 	Port    int
-	Project *Project
-}
-
-type Mount struct {
-	Src string `mapstructure:"src"`
-	Dst string `mapstructure:"dst"`
+	project *Project
 }
 
 type NotAService struct {
@@ -53,7 +48,7 @@ func (s *Service) Validate() error {
 
 func (s *Service) Id() string {
 	h := sha1.New()
-	h.Write([]byte(s.Project.Name))
+	h.Write([]byte(s.project.Name))
 	h.Write([]byte(s.Name))
 	hashString := fmt.Sprintf("%x", h.Sum(nil))
 	// Just the first 7 characters will be fine
@@ -69,26 +64,32 @@ func (s *Service) AbsPath() (string, error) {
 }
 
 func (s *Service) Start(img *container.Image, net *container.Network) error {
-	s.Project.logger.Debugf("%v %v", s, img, net)
-	con := s.Project.api.NewContainer(s.containerName(), *img)
+	s.project.logger.Debugf("%v %v", s, img, net)
+	con := s.project.api.NewContainer(s.containerName(), *img)
 	con.NetworkAlias = s.Name
 	con.Ports = []int{s.Port}
-	var mounts []container.Mount
-	for _, m := range s.Mounts {
-		mounts = append(mounts, container.Mount{Src: m.Src, Dst: m.Dst})
-	}
-	con.Mounts = mounts
-
-	err := s.Project.api.RunContainer(net, con)
+	serviceHome, err := s.AbsPath()
 	if err != nil {
 		return err
 	}
-	s.Project.logger.Infof("Service %s is up in container %s", s.Name, con.Name)
+	var mounts []container.Mount
+	for _, m := range s.Mounts {
+		src := filepath.Join(serviceHome, m)
+		dst := filepath.Join(img.WorkDir, m)
+		mounts = append(mounts, container.Mount{Src: src, Dst: dst})
+	}
+	con.Mounts = mounts
+
+	err = s.project.api.RunContainer(net, con)
+	if err != nil {
+		return err
+	}
+	s.project.logger.Infof("Service %s is up in container %s", s.Name, con.Name)
 	return nil
 }
 
 func (s *Service) Stop() error {
-	container, err := s.Project.api.GetContainer(s.containerName())
+	container, err := s.project.api.GetContainer(s.containerName())
 	if err != nil {
 		return err
 	}
@@ -96,10 +97,10 @@ func (s *Service) Stop() error {
 		// There is no container for this service, no need do anything.
 		return nil
 	}
-	s.Project.logger.Infof("Stopping container %s", container.Name)
-	err = s.Project.api.StopContainer(container)
+	s.project.logger.Infof("Stopping container %s", container.Name)
+	err = s.project.api.StopContainer(container)
 	if err != nil {
-		s.Project.logger.Debugf("Failed to stop container %s: %v", container.Name, err)
+		s.project.logger.Debugf("Failed to stop container %s: %v", container.Name, err)
 		return err
 	}
 	return nil
@@ -110,10 +111,10 @@ func (s *Service) Build(ctx context.Context, out io.Writer) (*container.Image, e
 	if err != nil {
 		return nil, err
 	}
-	s.Project.logger.Debugf("Preparing to build service %s with tag %s", s.Name, img.Name)
-	err = s.Project.api.BuildImage(img)
+	s.project.logger.Debugf("Preparing to build service %s with tag %s", s.Name, img.Name)
+	err = s.project.api.BuildImage(img)
 	if err != nil {
-		s.Project.logger.Debugf("Failed bo build image %v", err)
+		s.project.logger.Debugf("Failed bo build image %v", err)
 		return nil, err
 	}
 	return img, nil
@@ -124,7 +125,7 @@ func (s *Service) img() (*container.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	tag := fmt.Sprintf("foldlocal/%s/%s", s.Id(), s.Name)
+	tag := fmt.Sprintf("foldlocal/%s/%s:latest", s.Id(), s.Name)
 	img := &container.Image{
 		Src:  path,
 		Name: tag,

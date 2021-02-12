@@ -1,3 +1,4 @@
+VERSION := $(shell go run ./cmd/version)
 # The bin/$(1)/$(1) in the build commands looks odd, but it just makes it really easy
 # to get a very small build context for docker.
 define build-local
@@ -5,12 +6,24 @@ define build-local
 endef
 
 define build-image
-	docker build -t $(1) -f ./cmd/$(1)/images/Dockerfile ./bin/$(1)
+	docker build -t $(1) -f ./cmd/$(1)/$(2)/Dockerfile ./bin/$(1)
+endef
+
+define tag-image
+	docker tag $(1):latest foldsh/$(1):$(2)
 endef
 
 define build-release
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin/$(1)/$(1) ./cmd/$(1)
 endef
+
+install:
+	go install ./...
+.PHONY: install
+
+version:
+	@echo $(VERSION)
+.PHONY: version
 
 # FOLD GATEWAY
 foldgw: bin
@@ -22,7 +35,8 @@ foldgw-release: bin
 .PHONY: foldgw
 
 foldgw-image: foldgw-release
-	$(call build-image,foldgw)
+	$(call build-image,foldgw,images)
+	$(call tag-image,foldgw,$(VERSION))
 .PHONY: foldgw-image
 
 # FOLD RUNTIME
@@ -35,7 +49,12 @@ foldrt-release: bin
 .PHONY: foldrt-image
 
 foldrt-image: foldrt-release
-	$(call build-image,foldrt)
+	$(call build-image,foldrt,images/alpine)
+	$(call tag-image,foldrt,$(VERSION))
+	$(call tag-image,foldrt,$(VERSION)-alpine)
+
+	$(call build-image,foldrt,images/node)
+	$(call tag-image,foldrt,$(VERSION)-node)
 .PHONY: foldrt-image
 
 # FOLD CTL
@@ -46,10 +65,6 @@ foldctl: bin
 foldctl-release: bin
 	$(call build-release,foldctl)
 .PHONY: foldctl-release
-
-foldctl-image: foldctl-release
-	$(call build-image,foldctl)
-.PHONY: foldctl-image
 
 protoc:
 	protoc --proto_path=proto \
@@ -72,7 +87,7 @@ genmocks:
 		-destination=ctl/project/mock_container_api_test.go \
 		-package project_test
 
-bin: ./bin
+bin:
 	mkdir -p bin
 
 clean:

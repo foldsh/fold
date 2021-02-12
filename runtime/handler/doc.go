@@ -9,7 +9,3 @@
 // handler does the same thing, but translates to/from events passed to the
 // fold runtime by AWS Lambda.
 package handler
-
-type Handler interface {
-	Serve()
-}

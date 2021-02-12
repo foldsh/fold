@@ -26,15 +26,21 @@ type Project struct {
 	Repository string     `mapstructure:"repository"`
 	Services   []*Service `mapstructure:"services"`
 
-	logger logging.Logger
-	api    ContainerAPI
+	gatewayPort int
+	logger      logging.Logger
+	api         ContainerAPI
 }
 
-func Load(logger logging.Logger, searchPaths ...string) (*Project, error) {
-	if len(searchPaths) == 0 {
-		searchPaths = []string{"."}
+func Load(logger logging.Logger, projectPath string) (*Project, error) {
+	return load(logger, projectPath)
+}
+
+func Home() (string, error) {
+	if abs, err := filepath.Abs("."); err != nil {
+		return "", errors.New("can't locate fold home directory")
+	} else {
+		return abs, nil
 	}
-	return load(logger, searchPaths)
 }
 
 func IsAFoldProject(path string) bool {
@@ -46,6 +52,14 @@ func IsAFoldProject(path string) bool {
 	return true
 }
 
+func (p *Project) SaveConfig(projectPath string) error {
+	return saveConfig(p, projectPath)
+}
+
+func (p *Project) ConfigureGatewayPort(port int) {
+	p.gatewayPort = port
+}
+
 func (p *Project) ConfigureContainerAPI(b ContainerAPI) {
 	p.api = b
 }
@@ -54,15 +68,12 @@ func (p *Project) ConfigureLogger(l logging.Logger) {
 	p.logger = l
 }
 
-func (p *Project) SaveConfig(to ...string) error {
-	if len(to) == 0 {
-		to = []string{"."}
-	}
-	return saveConfig(p, to)
+func (p *Project) NewService(name string) *Service {
+	return &Service{Name: name, project: p}
 }
 
 func (p *Project) AddService(svc Service) {
-	svc.Project = p
+	svc.project = p
 	p.Services = append(p.Services, &svc)
 }
 
@@ -183,7 +194,7 @@ func (p *Project) network() *container.Network {
 }
 
 func (p *Project) gateway() *gateway.Gateway {
-	return &gateway.Gateway{Port: 8080}
+	return &gateway.Gateway{Port: p.gatewayPort}
 }
 
 func (p *Project) startGateway(net *container.Network) error {
@@ -196,7 +207,7 @@ func (p *Project) startGateway(net *container.Network) error {
 		return nil
 	}
 	imgName := gw.ImageName()
-	img, err := p.api.PullImage(imgName)
+	img, err := p.pullImageIfRequired(imgName)
 	if err != nil {
 		p.logger.Debugf("failed to pull the image for the gateway: %v", err)
 		return fmt.Errorf("failed to pull image %s", imgName)
@@ -242,5 +253,21 @@ func (p *Project) isGatewayUp(gw *gateway.Gateway) (*container.Container, error)
 }
 
 func (p *Project) gatewayService(gw *gateway.Gateway) *Service {
-	return &Service{Name: "foldgw", Project: p, Port: gw.Port}
+	svc := p.NewService("foldgw")
+	svc.Port = gw.Port
+	return svc
+}
+
+func (p *Project) pullImageIfRequired(image string) (*container.Image, error) {
+	img, err := p.api.GetImage(image)
+	if err != nil {
+		return nil, err
+	}
+	if img != nil {
+		p.logger.Debugf("Image %s already available locally, nothing to do.", image)
+		return img, nil
+	}
+	p.logger.Debugf("Pulling image %s", image)
+	img, err = p.api.PullImage(image)
+	return img, nil
 }

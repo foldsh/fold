@@ -12,7 +12,8 @@ type ContainerAPI interface {
 	NetworkExists(net *container.Network) (bool, error)
 	CreateNetwork(net *container.Network) error
 	RemoveNetwork(net *container.Network) error
-	PullImage(img string) (*container.Image, error)
+	GetImage(name string) (*container.Image, error)
+	PullImage(name string) (*container.Image, error)
 	BuildImage(img *container.Image) error
 	NewContainer(
 		name string,

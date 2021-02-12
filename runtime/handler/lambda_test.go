@@ -17,7 +17,7 @@ import (
 func TestLambdaHandler(t *testing.T) {
 	logger := logging.NewTestLogger()
 	doer := &mockHTTPDoer{t}
-	lambda := &lambdaHandler{logger, doer}
+	lambda := &LambdaHandler{logger, doer}
 
 	req := events.APIGatewayProxyRequest{
 		HTTPMethod:        "DELETE",

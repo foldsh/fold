@@ -7,7 +7,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var port int
+
 func init() {
+	upCmd.PersistentFlags().IntVarP(&port, "port", "p", 8080, "development server port")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -21,6 +24,7 @@ access on http://localhost:8080.`,
 		// The current behaviour is that if no services are passed, we just start the network.
 		out := newOut("docker: ")
 		proj := loadProjectWithRuntime(out)
+		proj.ConfigureGatewayPort(port)
 		if services, err := proj.GetServices(args...); err == nil {
 			if err := proj.Up(commandCtx, out, services...); err != nil {
 				exitWithErr(err)

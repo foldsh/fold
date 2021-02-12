@@ -41,7 +41,7 @@ func pullTemplates(path string) error {
 	if err != nil {
 		return err
 	}
-	return w.Pull(&git.PullOptions{RemoteName: "origin"})
+	return w.Pull(&git.PullOptions{RemoteName: "origin", Depth: 1})
 }
 
 func openWorkingTree(path string) (*git.Worktree, error) {
