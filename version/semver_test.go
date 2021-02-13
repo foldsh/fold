@@ -9,7 +9,7 @@ func TestVersionString(t *testing.T) {
 		Patch: 3,
 	}
 
-	if v.String() != "1.2.3" {
-		t.Errorf("Expection version to be '1.2.3' but found %s", v.String())
+	if v.String() != "v1.2.3" {
+		t.Errorf("Expection version to be 'v1.2.3' but found %s", v.String())
 	}
 }
