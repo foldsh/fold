@@ -10,12 +10,15 @@ running them locally.
 
 - [Overview](#overview)
 - [Installation](#installation)
+  * [Linux](#linux)
+  * [Mac](#mac)
+  * [Build from Source](#build-from-source)
 - [Speed Run](#speed-run)
 - [Working with Fold](#working-with-fold)
-  * [Project templates](#project-templates)
+  * [Project Templates](#project-templates)
   * [Project Structure](#project-structure)
   * [Project Config](#project-config)
-  * [Hot reloading](#hot-reloading)
+  * [Hot Reloading](#hot-reloading)
   * [SDKs](#sdks)
 - [Deployment](#deployment)
 - [Fold Runtime](#fold-runtime)
@@ -53,13 +56,54 @@ we're trying to create:
 
 # Installation
 
-You just need one binary to run the command line tool, `foldctl`. Head over to 
-the releases page to grab the latest release for your system. Simply download 
-the binary and place it somewhere on your `$PATH`.
+You just need a binary for the command line tool, `foldctl`. Head over to 
+the [releases page](https://github.com/foldsh/fold/releases/) to grab the latest 
+release for your system. Simply download and extract the binary, make it 
+executable and place it somewhere on your `$PATH`.
 
 The only dependency for local development is docker, which `foldctl` uses to
 build containers and run them for you locally. You can get docker from [the
 docker website](https://docs.docker.com/get-docker/).
+
+## Linux
+
+You will need to use the `foldctl-$VERSION-linux-amd64.tar.gz` release.
+
+For example:
+
+```
+tar xzvf foldctl-$VERSION-darwin-amd64.tar.gz
+chmod +x ./bin/release/foldctl/foldctl-$VERSION-linux-amd64
+sudo mv ./bin/release/foldctl/foldctl-$VERSION-linux-amd64 /usr/local/bin/foldctl
+```
+
+## Mac
+
+You will need to use the `foldctl-$VERSION-darwin-amd64.tar.gz` release.
+
+For example:
+
+```
+tar xzvf foldctl-$VERSION-darwin-amd64.tar.gz
+chmod +x ./bin/release/foldctl/foldctl-$VERSION-darwin-amd64
+sudo mv ./bin/release/foldctl/foldctl-$VERSION-darwin-amd64 /usr/local/bin/foldctl
+```
+
+There is one additional step for MacOS. The project is not yet known to Apple and
+so MacOS will stop you from running the binary for security reasons. If you are 
+still willing to run the binary to test it out, you can do so by navigating to 
+it in finder, right clicking on it and choosing Open With > Your terminal 
+application.
+
+This will tell MacOS you trust the binary and from then on you will be able to 
+use like any other. Sorry about this, I'll get it sorted out ASAP.
+
+## Build from Source
+
+Alternatively you can easily build the tool from source if you have the go
+compiler available. Simply check out the source at the tag you want and run:
+
+`go install ./cmd/foldctl/`
 
 # Speed Run
 
@@ -99,7 +143,7 @@ services.
 
 # Working with Fold
 
-## Project templates
+## Project Templates
 
 You can find example projects over in the [templates repository](https://github.com/foldsh/templates).
 These templates are also what `foldctl` uses to create new services. If you want
@@ -157,7 +201,7 @@ Additionally, there are a few options on the services that allow you to
 configure things for local development, for example which directories to mount
 on your containers so you can hot reload your changes.
 
-## Hot reloading
+## Hot Reloading
 
 In the service config, there is a key called `mounts` which simply takes a list
 of paths to mount to your running development containers. The paths are relative
