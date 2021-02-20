@@ -39,6 +39,8 @@ func loadProject() *project.Project {
 			exitWithMessage("Failed to load fold config. Please ensure you're in a fold project root.")
 		}
 	}
+	err = p.Validate()
+	exitIfErr(err)
 	return p
 }
 

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"github.com/foldsh/fold/ctl/container"
 	"github.com/foldsh/fold/ctl/gateway"
@@ -14,6 +15,8 @@ import (
 )
 
 var (
+	ProjectNameRegex = `^[a-zA-Z][a-zA-Z-_]+$`
+
 	NotAFoldProject = errors.New("fold.yaml not found")
 	InvalidConfig   = errors.New("invalid config file")
 	CantWriteConfig = errors.New("can't write fold.yaml")
@@ -70,6 +73,24 @@ func (p *Project) ConfigureLogger(l logging.Logger) {
 
 func (p *Project) NewService(name string) *Service {
 	return &Service{Name: name, project: p}
+}
+
+func (p *Project) Validate() error {
+	matched, _ := regexp.MatchString(ProjectNameRegex, p.Name)
+	if !matched {
+		return fmt.Errorf(
+			"%s is not a valid project name, it must match the regex %s",
+			p.Name,
+			ProjectNameRegex,
+		)
+	}
+	for _, svc := range p.Services {
+		err := svc.Validate()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *Project) AddService(svc Service) {

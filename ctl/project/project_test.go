@@ -204,6 +204,65 @@ func TestProjectServiceUtils(t *testing.T) {
 	}
 }
 
+func TestProjectValidation(t *testing.T) {
+	cases := []struct {
+		project     project.Project
+		expectation bool
+	}{
+		{project.Project{Name: "Foo"}, true},
+		{project.Project{Name: "foo"}, true},
+		{project.Project{Name: "Bar"}, true},
+		{project.Project{Name: "bar"}, true},
+		{project.Project{Name: "foo-bar"}, true},
+		{project.Project{Name: "Foo-Bar"}, true},
+		{project.Project{Name: "foo_bar"}, true},
+		{project.Project{Name: "FooBar"}, true},
+		{project.Project{Name: "foo/bar"}, false},
+		{project.Project{Name: "1foo/bar"}, false},
+		{project.Project{Name: "1"}, false},
+		{project.Project{Name: "1foo"}, false},
+		{project.Project{Name: ""}, false},
+		{project.Project{Name: "-------"}, false},
+		{project.Project{Name: "--FooBar--"}, false},
+		{project.Project{Name: "a------"}, true},
+		{project.Project{Name: "A------"}, true},
+		{project.Project{Name: "FooBar", Services: []*project.Service{{Name: "foo"}}}, true},
+		{project.Project{Name: "FooBar", Services: []*project.Service{{Name: "-foo"}}}, false},
+		{
+			project.Project{
+				Name:     "FooBar",
+				Services: []*project.Service{{Name: "foo"}, {Name: "-foo"}},
+			},
+			false,
+		},
+		{
+			project.Project{
+				Name:     "FooBar",
+				Services: []*project.Service{{Name: "foo"}, {Name: "bar"}},
+			},
+			true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.project.Name, func(t *testing.T) {
+			result := tc.project.Validate()
+			var wasValid bool
+			if result == nil {
+				wasValid = true
+			}
+			if wasValid != tc.expectation {
+				t.Errorf(
+					"For case %s expected valid to be %t but found %v.",
+					tc.project.Name,
+					tc.expectation,
+					result,
+				)
+			}
+		})
+	}
+}
+
 func diffConfig(t *testing.T, expectation, actual interface{}) {
 	if diff := cmp.Diff(
 		expectation,
