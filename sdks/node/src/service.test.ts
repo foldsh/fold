@@ -1,14 +1,19 @@
 import { TextDecoder, TextEncoder } from "util";
 import { GrpcClient } from "./__tests__/grpc_client";
 import { Request as ProtoRequest } from "../dist/proto/ingress_pb";
-import { Route, HttpMethod } from "../dist/proto/manifest_pb";
+import {
+  Route,
+  HttpMethod as ProtoHttpMethod,
+} from "../dist/proto/manifest_pb";
 
 import { Service, Request, Response } from "./service";
+import { mockLogger } from "./logging";
 
 describe("Fold Service", () => {
   const sockAddr: string = "/tmp/fold-node-sdk-test.sock";
   process.env.FOLD_SOCK_ADDR = sockAddr;
   const service: Service = new Service("test");
+  service.logger = mockLogger();
   service.get("/get", (req: Request, res: Response) => {
     res.statusCode = 200;
     res.body = req.body;
@@ -33,10 +38,10 @@ describe("Fold Service", () => {
       const manifest = await client.getManifest();
       expect(manifest.getName()).toEqual("test");
       const eRoute1 = new Route();
-      eRoute1.setHttpMethod(0);
+      eRoute1.setHttpMethod(ProtoHttpMethod.GET);
       eRoute1.setPathSpec("/get");
       const eRoute2 = new Route();
-      eRoute2.setHttpMethod(1);
+      eRoute2.setHttpMethod(ProtoHttpMethod.PUT);
       eRoute2.setPathSpec("/put");
       let expectation = [eRoute1, eRoute2];
 
@@ -53,7 +58,7 @@ describe("Fold Service", () => {
         const req = new ProtoRequest();
         const manifest = await client.getManifest();
         const handler = manifest.getRoutesList()[0].getHandler();
-        req.setHttpMethod(HttpMethod.GET);
+        req.setHttpMethod(ProtoHttpMethod.GET);
         req.setHandler(handler);
         req.setPath("/get");
         req.setBody(new TextEncoder().encode(JSON.stringify({})));
@@ -62,6 +67,7 @@ describe("Fold Service", () => {
         const resBody = JSON.parse(
           new TextDecoder("utf-8").decode(res.getBody_asU8())
         );
+        expect(res.getStatus()).toEqual(200);
         expect(resBody).toEqual({});
       });
     });
@@ -94,7 +100,7 @@ describe("Fold Service", () => {
           const manifest = await client.getManifest();
           const handler = manifest.getRoutesList()[1].getHandler();
           const req = new ProtoRequest();
-          req.setHttpMethod(HttpMethod.PUT);
+          req.setHttpMethod(ProtoHttpMethod.PUT);
           req.setHandler(handler);
           req.setPath(path);
           req.setBody(new TextEncoder().encode(JSON.stringify(body)));

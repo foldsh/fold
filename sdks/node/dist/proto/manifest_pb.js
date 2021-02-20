@@ -936,9 +936,14 @@ proto.manifest.Route.prototype.setPathSpec = function (value) {
  */
 proto.manifest.HttpMethod = {
   GET: 0,
-  PUT: 1,
+  HEAD: 1,
   POST: 2,
-  DELETE: 3,
+  PUT: 3,
+  DELETE: 4,
+  CONNECT: 5,
+  OPTIONS: 6,
+  TRACE: 7,
+  PATCH: 8,
 };
 
 goog.object.extend(exports, proto.manifest);

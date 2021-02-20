@@ -39,3 +39,13 @@ export function getLogger(service: string): Logger {
     return winston.createLogger(baseConfig);
   }
 }
+
+export function mockLogger(): Logger {
+  return {
+    debug: (_: any) => {},
+    info: (_: any) => {},
+    warn: (_: any) => {},
+    error: (_: any) => {},
+    crit: (_: any) => {},
+  };
+}

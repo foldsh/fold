@@ -91,16 +91,36 @@ func (s *service) Get(path string, handler Handler) {
 	s.registerHandler("GET", path, handler)
 }
 
-func (s *service) Put(path string, handler Handler) {
-	s.registerHandler("PUT", path, handler)
+func (s *service) Head(path string, handler Handler) {
+	s.registerHandler("HEAD", path, handler)
 }
 
 func (s *service) Post(path string, handler Handler) {
 	s.registerHandler("POST", path, handler)
 }
 
+func (s *service) Put(path string, handler Handler) {
+	s.registerHandler("PUT", path, handler)
+}
+
 func (s *service) Delete(path string, handler Handler) {
 	s.registerHandler("DELETE", path, handler)
+}
+
+func (s *service) Connect(path string, handler Handler) {
+	s.registerHandler("CONNECT", path, handler)
+}
+
+func (s *service) Options(path string, handler Handler) {
+	s.registerHandler("OPTIONS", path, handler)
+}
+
+func (s *service) Trace(path string, handler Handler) {
+	s.registerHandler("TRACE", path, handler)
+}
+
+func (s *service) Patch(path string, handler Handler) {
+	s.registerHandler("PATCH", path, handler)
 }
 
 func (s *service) Logger() logging.Logger {
@@ -109,8 +129,10 @@ func (s *service) Logger() logging.Logger {
 
 func (s *service) registerHandler(method, path string, handler Handler) {
 	handlerId := uuid.NewV4().String()
+	// We can safely ignore the error because we control which strings it is possible to pass in .
+	httpMethod, _ := manifest.HttpMethodFromString(method)
 	s.manifest.Routes = append(s.manifest.Routes, &manifest.Route{
-		HttpMethod: manifest.HttpMethodFromString(method),
+		HttpMethod: httpMethod,
 		PathSpec:   path,
 		Handler:    handlerId,
 	})

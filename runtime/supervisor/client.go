@@ -73,20 +73,28 @@ func (ic *ingressClient) getManifest(ctx context.Context) (*manifest.Manifest, e
 
 // Submit a request to the service for processing.
 func (ic *ingressClient) doRequest(ctx context.Context, in *Request) (*Response, error) {
-	res, err := ic.client.DoRequest(ctx, encodeRequest(in))
+	encoded, err := encodeRequest(in)
+	if err != nil {
+		return nil, err
+	}
+	res, err := ic.client.DoRequest(ctx, encoded)
 	return decodeResponse(res), err
 }
 
-func encodeRequest(req *Request) *pb.Request {
+func encodeRequest(req *Request) (*pb.Request, error) {
+	httpMethod, err := manifest.HttpMethodFromString(req.HttpMethod)
+	if err != nil {
+		return nil, err
+	}
 	return &pb.Request{
-		HttpMethod:  manifest.HttpMethodFromString(req.HttpMethod),
+		HttpMethod:  httpMethod,
 		Handler:     req.Handler,
 		Path:        req.Path,
 		Body:        req.Body,
 		Headers:     encodeMapRepeatedString(req.Headers),
 		PathParams:  req.PathParams,
 		QueryParams: encodeMapRepeatedString(req.QueryParams),
-	}
+	}, nil
 }
 
 func decodeResponse(res *pb.Response) *Response {

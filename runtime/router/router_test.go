@@ -249,8 +249,12 @@ func mkmanifest(routes ...*manifest.Route) *manifest.Manifest {
 }
 
 func mkroute(method, handler string, pathSpec string) *manifest.Route {
+	httpMethod, err := manifest.HttpMethodFromString(method)
+	if err != nil {
+		panic(err)
+	}
 	return &manifest.Route{
-		HttpMethod: manifest.HttpMethodFromString(method),
+		HttpMethod: httpMethod,
 		Handler:    handler,
 		PathSpec:   pathSpec,
 	}

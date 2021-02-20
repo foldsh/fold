@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 
 import {
   HttpMethod as ProtoHttpMethod,
+  HttpMethodMap as ProtoHttpMethodMap,
   Manifest,
   Route,
   Version as ProtoVersion,
@@ -29,9 +30,14 @@ import { getLogger, Logger } from "./logging";
 
 export enum HttpMethod {
   GET = "GET",
-  PUT = "PUT",
+  HEAD = "HEAD",
   POST = "POST",
+  PUT = "PUT",
   DELETE = "DELETE",
+  CONNECT = "CONNECT",
+  OPTIONS = "OPTIONS",
+  TRACE = "TRACE",
+  PATCH = "PATCH",
 }
 
 export class Request {
@@ -75,6 +81,11 @@ export class Service {
     return this._logger;
   }
 
+  public set logger(logger: Logger) {
+    this._logger = logger;
+    this.grpcBackend.logger = logger;
+  }
+
   public start(): void {
     this.grpcBackend.serve();
   }
@@ -83,16 +94,36 @@ export class Service {
     this.grpcBackend.registerHandler(HttpMethod.GET, path, handler);
   }
 
-  public put(path: string, handler: Handler): void {
-    this.grpcBackend.registerHandler(HttpMethod.PUT, path, handler);
+  public head(path: string, handler: Handler): void {
+    this.grpcBackend.registerHandler(HttpMethod.HEAD, path, handler);
   }
 
   public post(path: string, handler: Handler): void {
     this.grpcBackend.registerHandler(HttpMethod.POST, path, handler);
   }
 
+  public put(path: string, handler: Handler): void {
+    this.grpcBackend.registerHandler(HttpMethod.PUT, path, handler);
+  }
+
   public delete(path: string, handler: Handler): void {
     this.grpcBackend.registerHandler(HttpMethod.DELETE, path, handler);
+  }
+
+  public connect(path: string, handler: Handler): void {
+    this.grpcBackend.registerHandler(HttpMethod.CONNECT, path, handler);
+  }
+
+  public options(path: string, handler: Handler): void {
+    this.grpcBackend.registerHandler(HttpMethod.OPTIONS, path, handler);
+  }
+
+  public trace(path: string, handler: Handler): void {
+    this.grpcBackend.registerHandler(HttpMethod.TRACE, path, handler);
+  }
+
+  public patch(path: string, handler: Handler): void {
+    this.grpcBackend.registerHandler(HttpMethod.PATCH, path, handler);
   }
 }
 
@@ -115,6 +146,10 @@ class GrpcBackend {
 
   get logger(): Logger {
     return this._logger;
+  }
+
+  set logger(logger: Logger) {
+    this._logger = logger;
   }
 
   set version(version: Version) {
@@ -188,20 +223,41 @@ function newFoldIngressServer(backend: GrpcBackend): IFoldIngressServer {
   };
 }
 
-function decodeProtoHttpMethod(n: number): HttpMethod {
+function decodeProtoHttpMethod(
+  n: ProtoHttpMethodMap[keyof ProtoHttpMethodMap]
+): HttpMethod {
   switch (n) {
-    case 0:
+    case ProtoHttpMethod.GET:
       return HttpMethod.GET;
-    case 1:
-      return HttpMethod.PUT;
-    case 2:
+
+    case ProtoHttpMethod.HEAD:
+      return HttpMethod.HEAD;
+
+    case ProtoHttpMethod.POST:
       return HttpMethod.POST;
-    case 3:
+
+    case ProtoHttpMethod.PUT:
+      return HttpMethod.PUT;
+
+    case ProtoHttpMethod.DELETE:
       return HttpMethod.DELETE;
+
+    case ProtoHttpMethod.CONNECT:
+      return HttpMethod.CONNECT;
+
+    case ProtoHttpMethod.OPTIONS:
+      return HttpMethod.OPTIONS;
+
+    case ProtoHttpMethod.TRACE:
+      return HttpMethod.TRACE;
+
+    case ProtoHttpMethod.PATCH:
+      return HttpMethod.PATCH;
+
     default:
-      // TODO this is rubbish but we know it will never happen
-      // and I'm not very familiar with typescript.
-      return HttpMethod.GET;
+      // This can't happen actually happen in practice as it has all been
+      // validated by the gRPC server.
+      throw new Error(`Invalid HTTP method ${n}`);
   }
 }
 
