@@ -15,8 +15,9 @@ func init() {
 }
 
 var upCmd = &cobra.Command{
-	Use:   "up [service]",
-	Short: "Start the fold development server",
+	Use:     "up [service]",
+	Example: "foldctl up\nfoldctl up ./service-one/\nfoldctl up ./service-one/ ./service-two/",
+	Short:   "Start the fold development server",
 	Long: `Starts the fold development server.
 This will build all of your services and wire them up to a local gateway you can
 access on http://localhost:6123.`,

@@ -11,8 +11,9 @@ func init() {
 }
 
 var deployCmd = &cobra.Command{
-	Use:   "deploy [service]",
-	Short: "Deploys the specified service to the fold platform.",
+	Use:     "deploy [service]",
+	Example: "foldctl deploy ./service/",
+	Short:   "Deploys the specified service to the fold platform",
 	Long: `Deploy the specified service.
 This will build your service and then deploy it to your fold account.`,
 	Run: func(cmd *cobra.Command, args []string) {

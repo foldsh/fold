@@ -9,8 +9,9 @@ func init() {
 }
 
 var versionCmd = &cobra.Command{
-	Use:   "version",
-	Short: "Prints the version of foldctl.",
+	Use:     "version",
+	Example: "foldctl version\nfoldctl --version",
+	Short:   "Prints the version of foldctl",
 	Long: `Prints the version of foldctl.
 You can also use --version to get the same information.
 	`,

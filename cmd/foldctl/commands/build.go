@@ -9,8 +9,9 @@ func init() {
 }
 
 var buildCmd = &cobra.Command{
-	Use:   "build [service]",
-	Short: "Builds the specified service.",
+	Use:     "build [service]",
+	Example: "foldctl build ./service/",
+	Short:   "Builds the specified service",
 	Long: `Build the service located at the path you provide.
 In order for a directory to be a valid service, it just needs a Dockerfile that implements
 the fold runtime interface.
