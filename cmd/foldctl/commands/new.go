@@ -82,7 +82,7 @@ The templates are all availble at https://github.com/foldsh/templates.`,
 
 		// Create the path to the new service.
 		logger.Debugf("Creating service directory")
-		err = os.MkdirAll(absPath, DIR_PERMISSIONS)
+		err = os.MkdirAll(absPath, fs.DIR_PERMISSIONS)
 		exitIfErr(err, "Failed to create a directory at the path you specified.", checkPermissions)
 
 		// Copy the contents of the chosen template into the new directory.

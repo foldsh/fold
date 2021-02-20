@@ -17,7 +17,8 @@ func TestPullImage(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	fs := &mockFileSystem{}
+	rt := mockRuntime(dc, fs)
 
 	imgName := "fold/img:tag"
 	dc.
@@ -51,7 +52,8 @@ func TestPullImageFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	fs := &mockFileSystem{}
+	rt := mockRuntime(dc, fs)
 
 	imgName := "test/img:tag"
 	dc.
@@ -71,7 +73,8 @@ func TestBuildImage(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	fs := &mockFileSystem{}
+	rt := mockRuntime(dc, fs)
 
 	// Set up temp dir
 	workDir, err := ioutil.TempDir("", "test-fold-image-build")
@@ -114,7 +117,8 @@ func TestListImages(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	fs := &mockFileSystem{}
+	rt := mockRuntime(dc, fs)
 
 	dc.
 		EXPECT().

@@ -12,7 +12,8 @@ func TestNetworkCreateAndDestroy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	net := &Network{Name: "test"}
 
 	dc.
@@ -49,7 +50,8 @@ func TestNetworkCreateFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	net := &Network{Name: "test"}
 	dc.
 		EXPECT().
@@ -65,7 +67,8 @@ func TestNetworkThatExistsShouldNotBeRecreated(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	net := &Network{Name: "test"}
 	dc.
 		EXPECT().

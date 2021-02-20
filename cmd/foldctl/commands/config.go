@@ -73,7 +73,7 @@ func makeFoldConfig() (ctl.Config, error) {
 }
 
 func writeDefaultConfig(path string) error {
-	if err := os.MkdirAll(path, DIR_PERMISSIONS); err != nil {
+	if err := os.MkdirAll(path, fs.DIR_PERMISSIONS); err != nil {
 		fmt.Println(err)
 		return err
 	}

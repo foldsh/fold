@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"io"
+	"os"
 
 	"github.com/docker/docker/client"
 	"github.com/foldsh/fold/logging"
@@ -20,6 +21,7 @@ func NewRuntime(
 		ctx:    ctx,
 		logger: logger,
 		out:    out,
+		fs:     osFileSystem{},
 	}, nil
 }
 
@@ -28,6 +30,7 @@ type ContainerRuntime struct {
 	ctx    context.Context
 	logger logging.Logger
 	out    io.Writer
+	fs     fileSystem
 }
 
 func (cr *ContainerRuntime) Context() context.Context {
@@ -41,4 +44,14 @@ func newDockerClient(logger logging.Logger) (DockerClient, error) {
 		return nil, FailedToConnectToDockerEngineError
 	}
 	return client, nil
+}
+
+type fileSystem interface {
+	mkdirAll(path string, perm os.FileMode) error
+}
+
+type osFileSystem struct{}
+
+func (fs osFileSystem) mkdirAll(path string, perm os.FileMode) error {
+	return os.MkdirAll(path, perm)
 }

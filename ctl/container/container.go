@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
+	"github.com/foldsh/fold/ctl/fs"
 )
 
 var (
@@ -21,6 +22,7 @@ var (
 	FailedToStartContainer             = errors.New("failed to start the container")
 	FailedToStopContainer              = errors.New("failed to stop the container")
 	FailedToRemoveContainer            = errors.New("failed to remove the container")
+	FailedToBindVolume                 = errors.New("failed to bind container volume")
 
 	foldPrefix = "fold."
 )
@@ -80,8 +82,11 @@ func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
 	}
 	var mounts []mount.Mount
 	for _, m := range con.Mounts {
+		err := cr.fs.mkdirAll(m.Src, fs.DIR_PERMISSIONS)
+		if err != nil {
+			return FailedToBindVolume
+		}
 		mounts = append(mounts, mount.Mount{
-			// Type:   mount.TypeVolume,
 			Type:   mount.TypeBind,
 			Source: m.Src,
 			Target: m.Dst,

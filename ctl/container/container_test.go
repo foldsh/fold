@@ -13,6 +13,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
+	"github.com/foldsh/fold/ctl/fs"
+	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/logging"
 )
 
@@ -23,11 +25,12 @@ func TestContainerStartAndStop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	con := &Container{
 		Name:   "test",
 		Image:  Image{Name: "fold/test", WorkDir: "/fold"},
-		Mounts: []Mount{{"foo", "bar"}},
+		Mounts: []Mount{{"/home/test/blah/src", "/dst"}, {"/home/test/blah/foo", "/bar"}},
 	}
 	dc.
 		EXPECT().
@@ -45,6 +48,15 @@ func TestContainerStartAndStop(t *testing.T) {
 	if con.ID != "testContainerID" {
 		t.Errorf("Expected container ID to be set after start")
 	}
+	testutils.Diff(
+		t,
+		[]mkdirCall{
+			{"/home/test/blah/src", fs.DIR_PERMISSIONS},
+			{"/home/test/blah/foo", fs.DIR_PERMISSIONS},
+		},
+		mfs.Calls,
+		"Calls to mkdirAll did not match expectations",
+	)
 	dc.
 		EXPECT().
 		ContainerStop(any, "testContainerID", any)
@@ -55,7 +67,8 @@ func TestContainerStartAndStopFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	con := &Container{
 		Name:   "test",
 		Image:  Image{Name: "fold/test"},
@@ -96,7 +109,8 @@ func TestContainerRemove(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	con := &Container{
 		ID:     "testContainerID",
 		Name:   "test",
@@ -117,7 +131,8 @@ func TestContainerRemoveFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	con := &Container{
 		ID:     "testContainerID",
 		Name:   "test",
@@ -139,7 +154,8 @@ func TestContainerJoinAndLeaveNetwork(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	net := &Network{Name: "testNet", ID: "testNetID"}
 	con := &Container{
 		Name:   "testCon",
@@ -164,7 +180,8 @@ func TestContainerJoinAndLeaveNetworkFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 	net := &Network{Name: "testNet", ID: "testNetID"}
 	con := &Container{
 		Name:   "testCon",
@@ -196,7 +213,8 @@ func TestListAllFoldContainers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 
 	dc.
 		EXPECT().
@@ -240,7 +258,8 @@ func TestListAllFoldContainersFailure(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 
 	dc.
 		EXPECT().
@@ -257,7 +276,8 @@ func TestGetContainer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	dc := NewMockDockerClient(ctrl)
-	rt := mockRuntime(dc)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
 
 	dc.
 		EXPECT().
@@ -280,12 +300,13 @@ func TestGetContainer(t *testing.T) {
 	diffContainers(t, expectation, c)
 }
 
-func mockRuntime(dc DockerClient) *ContainerRuntime {
+func mockRuntime(dc DockerClient, fs *mockFileSystem) *ContainerRuntime {
 	return &ContainerRuntime{
 		cli:    dc,
 		ctx:    context.Background(),
 		logger: logging.NewTestLogger(),
 		out:    os.Stdout,
+		fs:     fs,
 	}
 }
 
@@ -306,4 +327,18 @@ func diffContainers(t *testing.T, expectation, actual interface{}) {
 	); diff != "" {
 		t.Errorf("Expected container lists to be equal(-want +got):\n%s", diff)
 	}
+}
+
+type mkdirCall struct {
+	Path string
+	Perm os.FileMode
+}
+
+type mockFileSystem struct {
+	Calls []mkdirCall
+}
+
+func (fs *mockFileSystem) mkdirAll(path string, perm os.FileMode) error {
+	fs.Calls = append(fs.Calls, mkdirCall{path, perm})
+	return nil
 }
