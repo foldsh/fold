@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/foldsh/fold/logging"
+	"github.com/foldsh/fold/version"
 )
 
 var (
@@ -19,11 +20,17 @@ var (
 	debug      bool
 
 	rootCmd = &cobra.Command{
-		Use:   "foldctl",
-		Short: "Fold CLI",
-		Long:  "Fold CLI",
-		PersistentPostRun: func(_ *cobra.Command, _ []string) {
-			// All successful commands print 'ok' in green at the end.
+		Use:     "foldctl",
+		Short:   "Fold CLI",
+		Long:    "Fold CLI",
+		Version: version.FoldVersion.String(),
+		PersistentPostRun: func(cmd *cobra.Command, _ []string) {
+			// All other successful commands print 'ok' in green at the end.
+			// We have one exception, which is 'version'. It's an exception so that
+			// the behaviour of it is identical to --version.
+			if cmd.CalledAs() == "version" {
+				return
+			}
 			print("%s", green("\nok"))
 		},
 	}
@@ -45,6 +52,7 @@ func init() {
 	})
 
 	// Verbose/Debug output
+	rootCmd.SetVersionTemplate(`{{printf "foldctl %s\n" .Version}}`)
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolVarP(
 		&debug, "debug", "", false, "debug output - generally for debugging foldctl itself",

@@ -1,9 +1,6 @@
 package commands
 
 import (
-	"fmt"
-
-	"github.com/foldsh/fold/version"
 	"github.com/spf13/cobra"
 )
 
@@ -15,10 +12,12 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Prints the version of foldctl.",
 	Long: `Prints the version of foldctl.
-You can also use -V, or --version to get the same information.
+You can also use --version to get the same information.
 	`,
 	Args: cobra.ExactArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(version.FoldVersion.String())
+		root := cmd.Root()
+		root.SetArgs([]string{"--version"})
+		root.Execute()
 	},
 }
