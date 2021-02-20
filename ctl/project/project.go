@@ -20,11 +20,11 @@ var (
 )
 
 type Project struct {
-	Name       string     `mapstructure:"name"`
-	Maintainer string     `mapstructure:"maintainer"`
-	Email      string     `mapstructure:"email"`
-	Repository string     `mapstructure:"repository"`
-	Services   []*Service `mapstructure:"services"`
+	Name       string
+	Maintainer string
+	Email      string
+	Repository string
+	Services   []*Service
 
 	gatewayPort int
 	logger      logging.Logger

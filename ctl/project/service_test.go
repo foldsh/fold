@@ -6,7 +6,7 @@ import (
 	"github.com/foldsh/fold/ctl/project"
 )
 
-func TestServiceValidate(t *testing.T) {
+func TestServiceNameValidation(t *testing.T) {
 	cases := []struct {
 		service     project.Service
 		expectation bool

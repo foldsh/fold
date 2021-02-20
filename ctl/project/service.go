@@ -19,9 +19,9 @@ var (
 )
 
 type Service struct {
-	Name    string   `mapstructure:"name"`
-	Path    string   `mapstructure:"path"`
-	Mounts  []string `mapstructure:"mounts"`
+	Name    string
+	Path    string
+	Mounts  []string
 	Port    int
 	project *Project
 }
