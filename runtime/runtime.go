@@ -57,7 +57,7 @@ func Run(logger logging.Logger, env string, stage string, command string, args .
 	case "LAMBDA":
 		hndlr = handler.NewLambda(loggr, routr)
 	default:
-		hndlr = handler.NewHTTP(loggr, routr, ":8080")
+		hndlr = handler.NewHTTP(loggr, routr, ":6123")
 	}
 	go func() {
 		// We start the handler in a goroutine like this to ensure that

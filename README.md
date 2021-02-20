@@ -117,7 +117,7 @@ This will set up a fold project and create a new service from the basic
 javascript template. Once the `up` command has run succesfully it will be
 available as an HTTP service on your machine. By default it will be running on: 
 
-`localhost:8080/hello-service`
+`localhost:6123/hello-service`
 
 Note the `hello-service` in the URL. The gateway creates a path for every 
 service, based on its name, and you must include that in the URL to contact 
@@ -135,7 +135,7 @@ foldctl up goodbye-service/
 The new service will be available on:
 
 ```
-`localhost:8080/hello-service`
+`localhost:6123/hello-service`
 ```
 
 When you're done run `foldct down` from the project root to bring down the

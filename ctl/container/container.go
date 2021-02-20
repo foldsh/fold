@@ -76,7 +76,7 @@ func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
 		binding := []nat.PortBinding{
 			{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", p)},
 		}
-		portBindings[nat.Port("8080/tcp")] = binding
+		portBindings[nat.Port("6123/tcp")] = binding
 	}
 	var mounts []mount.Mount
 	for _, m := range con.Mounts {

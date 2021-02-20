@@ -10,7 +10,7 @@ import (
 var port int
 
 func init() {
-	upCmd.PersistentFlags().IntVarP(&port, "port", "p", 8080, "development server port")
+	upCmd.PersistentFlags().IntVarP(&port, "port", "p", 6123, "development server port")
 	rootCmd.AddCommand(upCmd)
 }
 
@@ -19,7 +19,7 @@ var upCmd = &cobra.Command{
 	Short: "Start the fold development server",
 	Long: `Starts the fold development server.
 This will build all of your services and wire them up to a local gateway you can
-access on http://localhost:8080.`,
+access on http://localhost:6123.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// The current behaviour is that if no services are passed, we just start the network.
 		out := newOut("docker: ")

@@ -16,12 +16,12 @@ func Serve() {
 	r.Any("/:service/*path", func(c *gin.Context) {
 		proxy(c)
 	})
-	r.Run(":8080")
+	r.Run(":6123")
 }
 
 func proxy(c *gin.Context) error {
 	service := c.Param("service")
-	urlStr := fmt.Sprintf("http://%s:8080", service)
+	urlStr := fmt.Sprintf("http://%s:6123", service)
 	log.Println(urlStr)
 	remote, err := url.Parse(urlStr)
 	if err != nil {

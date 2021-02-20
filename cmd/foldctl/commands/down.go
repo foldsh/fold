@@ -13,7 +13,7 @@ var downCmd = &cobra.Command{
 	Short: "Stops the fold development server",
 	Long: `Stops the fold development server.
 This will build all of your services and wire them up to a local gateway you can
-access on http://localhost:8080.`,
+access on http://localhost:6123.`,
 	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		out := newOut("docker: ")
