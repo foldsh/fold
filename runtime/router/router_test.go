@@ -193,6 +193,17 @@ func TestServeHTTP(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			router.Configure(tc.manifest)
+			// Test healthz
+			status, body := req(logger, t, "GET", "/_foldadmin/healthz")
+			if status != 200 {
+				t.Errorf("Expected 200 response from healthz but found %d", status)
+			}
+			testutils.Diff(
+				t,
+				`{"status":"OK"}`,
+				string(body),
+				"/_foldadmin/healthz body did not match expectation",
+			)
 			// Test the manifest
 			expectation := &bytes.Buffer{}
 			manifest.WriteJSON(expectation, tc.manifest)

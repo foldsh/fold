@@ -54,6 +54,14 @@ func (fr *foldRouter) Configure(m *manifest.Manifest) {
 	// Register the default admin routes.
 	router.Handle(
 		"GET",
+		"/_foldadmin/healthz",
+		func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+			w.WriteHeader(200)
+			w.Write([]byte(`{"status":"OK"}`))
+		},
+	)
+	router.Handle(
+		"GET",
 		"/_foldadmin/manifest",
 		func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 			err := manifest.WriteJSON(w, fr.manifest)

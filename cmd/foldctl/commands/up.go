@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/foldsh/fold/ctl/project"
 	"github.com/foldsh/fold/manifest"
@@ -51,8 +52,9 @@ func displayServiceSummary(port int, services []*project.Service) {
 	gatewayURL := fmt.Sprintf("http://localhost:%d", port)
 	print(fmt.Sprintf("\nFold gateway is available at %s", gatewayURL))
 	for _, service := range services {
-		print("")
 		serviceURL := fmt.Sprintf("%s/%s", gatewayURL, service.Name)
+		waitForHealthz(serviceURL)
+		print("")
 		resp, err := http.Get(fmt.Sprintf("%s/_foldadmin/manifest", serviceURL))
 		exitIfErr(err)
 		defer resp.Body.Close()
@@ -64,5 +66,21 @@ func displayServiceSummary(port int, services []*project.Service) {
 		for _, route := range m.Routes {
 			print(fmt.Sprintf("        %s %s%s", route.HttpMethod, serviceURL, route.PathSpec))
 		}
+	}
+}
+
+func waitForHealthz(serviceURL string) {
+	var attempts int
+	for {
+		if attempts >= 10 {
+			exitWithMessage("Service is not healthy, please check the container logs.")
+		}
+		resp, err := http.Get(fmt.Sprintf("%s/_foldadmin/healthz", serviceURL))
+		exitIfErr(err)
+		if resp.StatusCode == 200 {
+			return
+		}
+		attempts += 1
+		time.Sleep(100 * time.Millisecond)
 	}
 }
