@@ -32,9 +32,10 @@ func NewRouter(logger logging.Logger, doer RequestDoer) Router {
 }
 
 type foldRouter struct {
-	logger logging.Logger
-	doer   RequestDoer
-	router *httprouter.Router
+	logger   logging.Logger
+	doer     RequestDoer
+	router   *httprouter.Router
+	manifest *manifest.Manifest
 }
 
 // This just implements the http.Handler interface
@@ -48,7 +49,23 @@ func (fr *foldRouter) DoRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (fr *foldRouter) Configure(m *manifest.Manifest) {
+	fr.manifest = m
 	router := newRouter()
+	// Register the default admin routes.
+	router.Handle(
+		"GET",
+		"/_foldadmin/manifest",
+		func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+			err := manifest.WriteJSON(w, fr.manifest)
+			if err != nil {
+				w.WriteHeader(500)
+				w.Write([]byte(`{"title":"Failed to marshal manifest to JSON"}`))
+				return
+			}
+			w.WriteHeader(200)
+		},
+	)
+	// And now register all of the routes from the manifest.
 	for _, route := range m.Routes {
 		router.Handle(
 			route.HttpMethod.String(),

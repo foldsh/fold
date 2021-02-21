@@ -115,9 +115,17 @@ foldctl up hello-service/
 
 This will set up a fold project and create a new service from the basic
 javascript template. Once the `up` command has run succesfully it will be
-available as an HTTP service on your machine. By default it will be running on: 
+available as an HTTP service on your machine. The command should give you
+some information about how to reach your new service and which routes have
+been registered:
 
-`localhost:6123/hello-service`
+```
+Fold gateway is available at http://localhost:6123
+
+    hello-service is available at http://localhost:6123/hello-service
+    hello-service routes:
+        GET http://localhost:6123/hello-service/hello/:name
+```
 
 Note the `hello-service` in the URL. The gateway creates a path for every 
 service, based on its name, and you must include that in the URL to contact 
@@ -134,9 +142,7 @@ foldctl up goodbye-service/
 
 The new service will be available on:
 
-```
-`localhost:6123/hello-service`
-```
+`localhost:6123/goodbye-service`
 
 When you're done run `foldct down` from the project root to bring down the
 services.
@@ -163,7 +169,7 @@ an integrate it yourself.
 
 ## Project Structure
 
-A fold projet has a very simple structure. It consists of a project root, which
+A fold project has a very simple structure. It consists of a project root, which
 is identified by the `fold.yaml` file, and services.
 
 Services are simply subdirectories within a fold project that container a valid

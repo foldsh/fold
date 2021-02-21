@@ -2,8 +2,11 @@ package commands
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
 
 	"github.com/foldsh/fold/ctl/project"
+	"github.com/foldsh/fold/manifest"
 	"github.com/spf13/cobra"
 )
 
@@ -30,6 +33,7 @@ access on http://localhost:6123.`,
 			if err := proj.Up(commandCtx, out, services...); err != nil {
 				exitWithErr(err)
 			}
+			displayServiceSummary(port, services)
 		} else {
 			var notAService project.NotAService
 			if errors.As(err, &notAService) {
@@ -38,4 +42,27 @@ access on http://localhost:6123.`,
 			exitWithMessage(thisIsABug)
 		}
 	},
+}
+
+// I am just doing this in here for now as it's not that clear where
+// its natural home is and whether there is even any reason to have it
+// represented more formally.
+func displayServiceSummary(port int, services []*project.Service) {
+	gatewayURL := fmt.Sprintf("http://localhost:%d", port)
+	print(fmt.Sprintf("\nFold gateway is available at %s", gatewayURL))
+	for _, service := range services {
+		print("")
+		serviceURL := fmt.Sprintf("%s/%s", gatewayURL, service.Name)
+		resp, err := http.Get(fmt.Sprintf("%s/_foldadmin/manifest", serviceURL))
+		exitIfErr(err)
+		defer resp.Body.Close()
+		m := &manifest.Manifest{}
+		err = manifest.ReadJSON(resp.Body, m)
+		exitIfErr(err)
+		print(fmt.Sprintf("    %s is available at %s", service.Name, serviceURL))
+		print(fmt.Sprintf("    %s routes:", service.Name))
+		for _, route := range m.Routes {
+			print(fmt.Sprintf("        %s %s%s", route.HttpMethod, serviceURL, route.PathSpec))
+		}
+	}
 }

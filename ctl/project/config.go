@@ -22,7 +22,7 @@ type onDiskService struct {
 	Mounts []string `mapstructure:"mounts"`
 }
 
-func (odp *onDiskProject) unmarshall(logger logging.Logger) *Project {
+func (odp *onDiskProject) unmarshal(logger logging.Logger) *Project {
 	p := &Project{
 		Name:       odp.Name,
 		Maintainer: odp.Maintainer,
@@ -38,7 +38,7 @@ func (odp *onDiskProject) unmarshall(logger logging.Logger) *Project {
 	return p
 }
 
-func marshallProject(p *Project) *onDiskProject {
+func marshalProject(p *Project) *onDiskProject {
 	odp := &onDiskProject{
 		Name:       p.Name,
 		Maintainer: p.Maintainer,
@@ -76,11 +76,11 @@ func load(logger logging.Logger, location string) (*Project, error) {
 		logger.Debugf("failed to unmarshal config %v", err)
 		return nil, InvalidConfig
 	}
-	return odp.unmarshall(logger), nil
+	return odp.unmarshal(logger), nil
 }
 
 func saveConfig(p *Project, to string) error {
-	odp := marshallProject(p)
+	odp := marshalProject(p)
 	v := newViper(to)
 	v.Set("name", odp.Name)
 	v.Set("maintainer", odp.Maintainer)

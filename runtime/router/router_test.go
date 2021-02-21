@@ -1,6 +1,7 @@
 package router
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -192,6 +193,19 @@ func TestServeHTTP(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			router.Configure(tc.manifest)
+			// Test the manifest
+			expectation := &bytes.Buffer{}
+			manifest.WriteJSON(expectation, tc.manifest)
+			status, actual := req(logger, t, "GET", "/_foldadmin/manifest")
+			if status != 200 {
+				t.Errorf("Expected 200 response from manifest but found %d", status)
+			}
+			testutils.Diff(
+				t,
+				expectation.Bytes(),
+				actual,
+				"/_foldadmin/manifest did not return the expected manifest",
+			)
 			for _, r := range tc.requests {
 				t.Run(fmt.Sprintf("%s:%s", r.method, r.path), func(t *testing.T) {
 					status, body := req(logger, t, r.method, r.path)
