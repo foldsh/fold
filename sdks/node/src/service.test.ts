@@ -12,7 +12,8 @@ import { mockLogger } from "./logging";
 describe("Fold Service", () => {
   const sockAddr: string = "/tmp/fold-node-sdk-test.sock";
   process.env.FOLD_SOCK_ADDR = sockAddr;
-  const service: Service = new Service("test");
+  process.env.FOLD_SERVICE_NAME = "test";
+  const service: Service = new Service();
   service.logger = mockLogger();
   service.get("/get", (req: Request, res: Response) => {
     res.statusCode = 200;

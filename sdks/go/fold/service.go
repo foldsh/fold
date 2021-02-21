@@ -38,8 +38,9 @@ type Service interface {
 	Logger() logging.Logger
 }
 
-func NewService(name string) Service {
+func NewService() Service {
 	stage := os.Getenv("FOLD_STAGE")
+	name := os.Getenv("FOLD_SERVICE_NAME")
 	var (
 		logger logging.Logger
 		err    error
@@ -59,7 +60,7 @@ func NewService(name string) Service {
 		name:     name,
 		handlers: make(map[string]Handler),
 		logger:   logger,
-		manifest: &manifest.Manifest{},
+		manifest: &manifest.Manifest{Name: name},
 	}
 	grpcServer := &grpcServer{service: s, logger: logger}
 	s.server = grpcServer

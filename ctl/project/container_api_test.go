@@ -63,7 +63,6 @@ func TestProjectWorkflow(t *testing.T) {
 			gwImg := &container.Image{Name: gwImgName}
 			gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
 			gwContainer := &container.Container{ID: fmt.Sprintf("%d", 0), Name: gwContainerName}
-
 			api.
 				EXPECT().
 				GetContainer(gwContainerName).
@@ -82,7 +81,15 @@ func TestProjectWorkflow(t *testing.T) {
 				Return(gwContainer)
 			api.
 				EXPECT().
-				RunContainer(net, gwContainer)
+				RunContainer(
+					net,
+					&container.Container{
+						ID:           fmt.Sprintf("%d", 0),
+						Name:         gwContainerName,
+						NetworkAlias: gwSvc.Name,
+						Environment:  map[string]string{"FOLD_SERVICE_NAME": gwSvc.Name},
+					},
+				)
 
 			// Should set up the services
 			for i, svc := range proj.Services {
@@ -95,7 +102,6 @@ func TestProjectWorkflow(t *testing.T) {
 					Src:  path,
 				}
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
-				container := &container.Container{ID: fmt.Sprintf("%d", i), Name: containerName}
 				api.
 					EXPECT().
 					GetContainer(containerName).
@@ -106,10 +112,16 @@ func TestProjectWorkflow(t *testing.T) {
 				api.
 					EXPECT().
 					NewContainer(containerName, *img).
-					Return(container)
+					Return(&container.Container{ID: fmt.Sprintf("%d", i), Name: containerName})
+				modifiedCon := &container.Container{
+					ID:           fmt.Sprintf("%d", i),
+					Name:         containerName,
+					NetworkAlias: svc.Name,
+					Environment:  map[string]string{"FOLD_SERVICE_NAME": svc.Name},
+				}
 				api.
 					EXPECT().
-					RunContainer(net, container)
+					RunContainer(gomock.Eq(net), gomock.Eq(modifiedCon))
 			}
 			proj.Up(context.Background(), out, proj.Services...)
 

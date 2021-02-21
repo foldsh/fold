@@ -36,6 +36,7 @@ type Container struct {
 	Image        Image
 	Ports        []int
 	Mounts       []Mount
+	Environment  map[string]string
 }
 
 type Mount struct {
@@ -96,14 +97,15 @@ func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
 	if len(mounts) > 0 {
 		watchDir = mounts[0].Target
 	}
+	env := []string{"FOLD_STAGE=LOCAL", fmt.Sprintf("FOLD_WATCH_DIR=%s", watchDir)}
+	for key, value := range con.Environment {
+		env = append(env, fmt.Sprintf("%s=%s", key, value))
+	}
 	resp, err := cr.cli.ContainerCreate(
 		cr.ctx,
 		&container.Config{
 			Image: con.Image.Name,
-			Env: []string{
-				"FOLD_STAGE=LOCAL",
-				fmt.Sprintf("FOLD_WATCH_DIR=%s", watchDir),
-			},
+			Env:   env,
 		},
 		// TODO make auto removing containers configurable
 		&container.HostConfig{PortBindings: portBindings, Mounts: mounts, AutoRemove: true},

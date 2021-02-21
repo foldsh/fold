@@ -28,9 +28,10 @@ func TestContainerStartAndStop(t *testing.T) {
 	mfs := &mockFileSystem{}
 	rt := mockRuntime(dc, mfs)
 	con := &Container{
-		Name:   "test",
-		Image:  Image{Name: "fold/test", WorkDir: "/fold"},
-		Mounts: []Mount{{"/home/test/blah/src", "/dst"}, {"/home/test/blah/foo", "/bar"}},
+		Name:        "test",
+		Image:       Image{Name: "fold/test", WorkDir: "/fold"},
+		Mounts:      []Mount{{"/home/test/blah/src", "/dst"}, {"/home/test/blah/foo", "/bar"}},
+		Environment: map[string]string{"FOLD_SERVICE_NAME": "test"},
 	}
 	dc.
 		EXPECT().
@@ -38,6 +39,7 @@ func TestContainerStartAndStop(t *testing.T) {
 			any, &container.Config{Image: "fold/test", Env: []string{
 				"FOLD_STAGE=LOCAL",
 				fmt.Sprintf("FOLD_WATCH_DIR=%s", con.Mounts[0].Dst),
+				"FOLD_SERVICE_NAME=test",
 			}}, any, any, any, "test",
 		).
 		Return(container.ContainerCreateCreatedBody{ID: "testContainerID"}, nil)

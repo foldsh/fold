@@ -67,7 +67,9 @@ func (s *Service) Start(img *container.Image, net *container.Network) error {
 	s.project.logger.Debugf("%v %v", s, img, net)
 	con := s.project.api.NewContainer(s.containerName(), *img)
 	con.NetworkAlias = s.Name
-	con.Ports = []int{s.Port}
+	if s.Port != 0 {
+		con.Ports = []int{s.Port}
+	}
 	serviceHome, err := s.AbsPath()
 	if err != nil {
 		return err
@@ -79,6 +81,7 @@ func (s *Service) Start(img *container.Image, net *container.Network) error {
 		mounts = append(mounts, container.Mount{Src: src, Dst: dst})
 	}
 	con.Mounts = mounts
+	con.Environment = map[string]string{"FOLD_SERVICE_NAME": s.Name}
 
 	err = s.project.api.RunContainer(net, con)
 	if err != nil {

@@ -65,12 +65,14 @@ export interface Version {
 }
 
 export class Service {
+  private name: string;
   private grpcBackend: GrpcBackend;
   private _logger: Logger;
 
-  constructor(name: string) {
-    this._logger = getLogger(name);
-    this.grpcBackend = new GrpcBackend(name, this._logger);
+  constructor() {
+    this.name = process.env.FOLD_SERVICE_NAME!;
+    this._logger = getLogger(this.name);
+    this.grpcBackend = new GrpcBackend(this.name, this._logger);
   }
 
   public set version(version: Version) {
