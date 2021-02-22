@@ -1,79 +1,37 @@
-VERSION := $(shell go run ./cmd/version)
-# The bin/$(1)/$(1) in the build commands looks odd, but it just makes it really easy
-# to get a very small build context for docker.
-define build-local
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/$(1)/$(1) ./cmd/$(1)
-endef
-
-define build-image
-	docker build -t $(1) -f ./cmd/$(1)/$(2)/Dockerfile ./bin/$(1)
-endef
-
-define tag-image
-	docker tag $(1):latest foldsh/$(1):$(2)
-endef
-
-define build-release-linux
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin/$(1)/$(1) ./cmd/$(1)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-d -s" -o bin/release/$(1)/$(1)-$(VERSION)-linux-amd64 ./cmd/$(1)
-	tar czvf bin/release/$(1)/$(1)-$(VERSION)-linux-amd64.tar.gz bin/release/$(1)/$(1)-$(VERSION)-linux-amd64
-endef
-
-define build-release-darwin
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s" -o bin/release/$(1)/$(1)-$(VERSION)-darwin-amd64 ./cmd/$(1)
-	tar czvf bin/release/$(1)/$(1)-$(VERSION)-darwin-amd64.tar.gz bin/release/$(1)/$(1)-$(VERSION)-darwin-amd64
-endef
+GOOS=$(shell go env GOHOSTOS)
+GOARCH=$(shell go env GOARCH)
 
 install:
 	go install ./...
 .PHONY: install
 
 version:
-	@echo $(VERSION)
+	@echo $(shell go run ./cmd/version)
 .PHONY: version
 
-# FOLD GATEWAY
-foldgw: bin
-	$(call build-local,foldgw)
-.PHONY: foldgw
-
-foldgw-release: bin
-	$(call build-release-linux,foldgw)
-.PHONY: foldgw
-
-foldgw-image: foldgw-release
-	$(call build-image,foldgw,images)
-	$(call tag-image,foldgw,$(VERSION))
-.PHONY: foldgw-image
-
-# FOLD RUNTIME
-foldrt: bin
-	$(call build-local,foldrt)
-.PHONY: foldrt
-
-foldrt-release: bin
-	$(call build-release-linux,foldrt)
-	$(call build-release-darwin,foldrt)
-.PHONY: foldrt-image
-
-foldrt-image: foldrt-release
-	$(call build-image,foldrt,images/alpine)
-	$(call tag-image,foldrt,$(VERSION))
-	$(call tag-image,foldrt,$(VERSION)-alpine)
-
-	$(call build-image,foldrt,images/node)
-	$(call tag-image,foldrt,$(VERSION)-node)
-.PHONY: foldrt-image
-
-# FOLD CTL
 foldctl: bin
-	$(call build-local,foldctl)
+	./scripts/build.sh --bin foldctl --os ${GOOS} --arch ${GOARCH}
 .PHONY: foldctl
 
 foldctl-release: bin
-	$(call build-release-linux,foldctl)
-	$(call build-release-darwin,foldctl)
+	./scripts/build.sh --bin foldctl --os "darwin linux" --arch "amd64" --tar
 .PHONY: foldctl-release
+
+foldrt: bin
+	./scripts/build.sh --bin foldrt --os "${GOOS}" --arch "${GOARCH}" --images
+.PHONY: foldrt
+
+foldrt-release: bin
+	./scripts/build.sh --bin foldrt --os "linux" --arch "amd64" --tar --images --latest-tag "alpine"
+.PHONY: foldrt-release
+
+foldgw: bin
+	./scripts/build.sh --bin foldgw --os "${GOOS}" --arch "${GOARCH}" --images
+.PHONY: foldgw
+
+foldgw-release: bin
+	./scripts/build.sh --bin foldgw --os "linux" --arch "amd64" --tar --images --latest-tag "scratch"
+.PHONY: foldgw-release
 
 protoc:
 	protoc --proto_path=proto \
@@ -102,3 +60,11 @@ bin:
 clean:
 	rm -rf bin
 .PHONY: install
+
+install-gotools:
+	mkdir -p .gotools
+	cd .gotools && if [[ ! -f go.mod ]]; then \
+		go mod init fold-tools ; \
+	fi
+	cd .gotools && go get -v github.com/golang/mock/mockgen@v1.5.0 github.com/mitchellh/gox
+.PHONY: gotools
