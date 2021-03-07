@@ -14,6 +14,7 @@ import (
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 	"github.com/foldsh/fold/runtime/supervisor/pb"
+	"github.com/foldsh/fold/runtime/types"
 )
 
 var restartCount = 0
@@ -39,7 +40,11 @@ func TestSupervisorIntegration(t *testing.T) {
 		t.Fatalf("Exepcted manifest to have version %+v, but found %+v", expectation, m.Version)
 	}
 
-	req := &Request{HttpMethod: "GET", Path: "/test", Body: []byte(`{"msg": "test_body"}`)}
+	req := &types.Request{
+		HTTPMethod: "GET",
+		Body:       []byte(`{"msg": "test_body"}`),
+		Route:      "/test",
+	}
 	res, err := service.DoRequest(req)
 	if err != nil {
 		t.Fatalf("Failed to make request")
@@ -75,7 +80,11 @@ func TestSupervisorShouldFunctionWithDeadProcessIntegration(t *testing.T) {
 	service := newTestSupervisor(t)
 	service.Start()
 	service.process.kill()
-	req := &Request{HttpMethod: "GET", Path: "/test", Body: []byte(`{"msg": "test_body"}`)}
+	req := &types.Request{
+		HTTPMethod: "GET",
+		Body:       []byte(`{"msg": "test_body"}`),
+		Route:      "/test",
+	}
 	if res, err := service.DoRequest(req); err != nil {
 		t.Fatalf("Failed to make request")
 	} else {
@@ -180,8 +189,11 @@ func (is *testIngressServer) GetManifest(
 	return is.manifest, nil
 }
 
-func (is *testIngressServer) DoRequest(ctx context.Context, in *pb.Request) (*pb.Response, error) {
-	return &pb.Response{Status: 200, Body: in.Body, Headers: nil}, nil
+func (is *testIngressServer) DoRequest(
+	ctx context.Context,
+	in *manifest.FoldHTTPRequest,
+) (*manifest.FoldHTTPResponse, error) {
+	return &manifest.FoldHTTPResponse{Status: 200, Body: in.Body, Headers: nil}, nil
 }
 
 func compareVersion(a *manifest.Version, b *manifest.Version) bool {

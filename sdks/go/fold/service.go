@@ -4,20 +4,17 @@ import (
 	"fmt"
 	"os"
 
-	uuid "github.com/satori/go.uuid"
-
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 )
 
 type Request struct {
-	HttpMethod  string
-	Handler     string
-	Path        string
+	HTTPMethod  string
 	Body        map[string]interface{}
 	Headers     map[string][]string
 	PathParams  map[string]string
 	QueryParams map[string][]string
+	Route       string
 }
 
 type Response struct {
@@ -58,7 +55,7 @@ func NewService() Service {
 	}
 	s := &service{
 		name:     name,
-		handlers: make(map[string]Handler),
+		handlers: make(map[string]map[string]Handler),
 		logger:   logger,
 		manifest: &manifest.Manifest{Name: name},
 	}
@@ -71,7 +68,7 @@ type service struct {
 	name     string
 	server   *grpcServer
 	manifest *manifest.Manifest
-	handlers map[string]Handler
+	handlers map[string]map[string]Handler
 	logger   logging.Logger
 }
 
@@ -88,65 +85,68 @@ func (s *service) Version(major, minor, patch int) {
 	}
 }
 
-func (s *service) Get(path string, handler Handler) {
-	s.registerHandler("GET", path, handler)
+func (s *service) Get(route string, handler Handler) {
+	s.registerHandler("GET", route, handler)
 }
 
-func (s *service) Head(path string, handler Handler) {
-	s.registerHandler("HEAD", path, handler)
+func (s *service) Head(route string, handler Handler) {
+	s.registerHandler("HEAD", route, handler)
 }
 
-func (s *service) Post(path string, handler Handler) {
-	s.registerHandler("POST", path, handler)
+func (s *service) Post(route string, handler Handler) {
+	s.registerHandler("POST", route, handler)
 }
 
-func (s *service) Put(path string, handler Handler) {
-	s.registerHandler("PUT", path, handler)
+func (s *service) Put(route string, handler Handler) {
+	s.registerHandler("PUT", route, handler)
 }
 
-func (s *service) Delete(path string, handler Handler) {
-	s.registerHandler("DELETE", path, handler)
+func (s *service) Delete(route string, handler Handler) {
+	s.registerHandler("DELETE", route, handler)
 }
 
-func (s *service) Connect(path string, handler Handler) {
-	s.registerHandler("CONNECT", path, handler)
+func (s *service) Connect(route string, handler Handler) {
+	s.registerHandler("CONNECT", route, handler)
 }
 
-func (s *service) Options(path string, handler Handler) {
-	s.registerHandler("OPTIONS", path, handler)
+func (s *service) Options(route string, handler Handler) {
+	s.registerHandler("OPTIONS", route, handler)
 }
 
-func (s *service) Trace(path string, handler Handler) {
-	s.registerHandler("TRACE", path, handler)
+func (s *service) Trace(route string, handler Handler) {
+	s.registerHandler("TRACE", route, handler)
 }
 
-func (s *service) Patch(path string, handler Handler) {
-	s.registerHandler("PATCH", path, handler)
+func (s *service) Patch(route string, handler Handler) {
+	s.registerHandler("PATCH", route, handler)
 }
 
 func (s *service) Logger() logging.Logger {
 	return s.logger
 }
 
-func (s *service) registerHandler(method, path string, handler Handler) {
-	handlerId := uuid.NewV4().String()
+func (s *service) registerHandler(method, route string, handler Handler) {
 	// We can safely ignore the error because we control which strings it is possible to pass in .
-	httpMethod, _ := manifest.HttpMethodFromString(method)
+	httpMethod, _ := manifest.HTTPMethodFromString(method)
 	s.manifest.Routes = append(s.manifest.Routes, &manifest.Route{
 		HttpMethod: httpMethod,
-		PathSpec:   path,
-		Handler:    handlerId,
+		Route:      route,
 	})
-	s.handlers[handlerId] = handler
+	if _, exists := s.handlers[route]; !exists {
+		s.handlers[route] = make(map[string]Handler)
+	}
+	s.handlers[route][method] = handler
 }
 
 func (s *service) doRequest(req *Request, res *Response) {
-	if handler, exists := s.handlers[req.Handler]; exists {
-		handler(req, res)
-	} else {
-		// This shouldn't every happen as the runtime should only send handler ids
-		// specified by the manifest.
-		res.StatusCode = 500
-		res.Body = map[string]interface{}{"title": fmt.Sprintf("Handler %s does not exist", req.Handler)}
+	if methods, exists := s.handlers[req.Route]; exists {
+		if handler, exists := methods[req.HTTPMethod]; exists {
+			handler(req, res)
+			return
+		}
 	}
+	// This shouldn't every happen as the runtime should only send handler ids
+	// specified by the manifest.
+	res.StatusCode = 500
+	res.Body = map[string]interface{}{"title": fmt.Sprintf("Handler %s does not exist", req.Route)}
 }

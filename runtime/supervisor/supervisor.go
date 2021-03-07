@@ -20,6 +20,7 @@ import (
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
+	"github.com/foldsh/fold/runtime/types"
 )
 
 var (
@@ -30,28 +31,6 @@ var (
 		`{"title": "Cannot service request","detail":"The application is not running. Please check the logs."}`,
 	)
 )
-
-// This is just a wrapper around the protobuf definition in proto/ingress.proto
-// It makes them easier to use and avoids exposing the generated code to the
-// rest of the runtime package.
-type Request struct {
-	HttpMethod  string
-	Handler     string
-	Path        string
-	Body        []byte
-	Headers     map[string][]string
-	PathParams  map[string]string
-	QueryParams map[string][]string
-}
-
-// This is just a wrapper around the protobuf definition in proto/ingress.proto
-// It makes them easier to use and avoids exposing the generated code to the
-// rest of the runtime package.
-type Response struct {
-	Status  int
-	Body    []byte
-	Headers map[string][]string
-}
 
 func NewSupervisor(logger logging.Logger, cmd string, args ...string) *Supervisor {
 	service := &Supervisor{
@@ -64,7 +43,9 @@ func NewSupervisor(logger logging.Logger, cmd string, args ...string) *Superviso
 	return service
 }
 
-// This struct is basically about managing all the different states for a client and subprocess.
+// TODO
+// This can all be greatly improved really.
+// What we're trying to do is manage the different states for a client and subprocess.
 // States -> Action:
 //   - process: up, client: up -> Do Request
 //   - process: up, client: down -> Error Response
@@ -86,14 +67,12 @@ type Supervisor struct {
 	subprocessFactory subprocessFactory
 	process           foldSubprocess
 }
-
 type clientFactory func(logging.Logger, string) *ingressClient
 type subprocessFactory func(logging.Logger, string) foldSubprocess
 
 type foldSubprocess interface {
 	run(string, ...string) error
 	kill() error
-	// wait() error
 	signal(os.Signal) error
 	healthz() bool
 }
@@ -136,7 +115,7 @@ func (s *Supervisor) Restart() error {
 	return nil
 }
 
-func (s *Supervisor) DoRequest(req *Request) (*Response, error) {
+func (s *Supervisor) DoRequest(req *types.Request) (*types.Response, error) {
 	s.logger.Debug("performing application request: ", req)
 	if s.process.healthz() {
 		return s.client.doRequest(context.Background(), req)
@@ -145,7 +124,7 @@ func (s *Supervisor) DoRequest(req *Request) (*Response, error) {
 		// the desired effect. Basically, the supervisor should remain responsive when
 		// the child process is unavailable. I.e., just because the subprocess is unhealthy,
 		// it doesn't mean the runtime is too.
-		res := &Response{Status: 502, Body: CannotServiceRequest}
+		res := &types.Response{Status: 502, Body: CannotServiceRequest}
 		return res, nil
 	}
 }
@@ -165,10 +144,6 @@ func (s *Supervisor) Signal(sig os.Signal) error {
 			s.logger.Debugf("failed to signal subprocess %+v", err)
 			return FailedToStopProcess
 		}
-		// if err := s.process.wait(); err != nil {
-		// 	s.logger.Debugf("failed to wait for subprocess %+v", err)
-		// 	return FailedToStopProcess
-		// }
 	case syscall.SIGKILL:
 		s.logger.Debugf("killing the application subprocess")
 		defer os.Remove(s.addr)

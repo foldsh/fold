@@ -2,6 +2,7 @@
 // file: manifest.proto
 
 import * as jspb from "google-protobuf";
+import * as http_pb from "./http_pb";
 
 export class Manifest extends jspb.Message {
   getName(): string;
@@ -126,14 +127,13 @@ export namespace Version {
 }
 
 export class Route extends jspb.Message {
-  getHttpMethod(): HttpMethodMap[keyof HttpMethodMap];
-  setHttpMethod(value: HttpMethodMap[keyof HttpMethodMap]): void;
+  getHttpMethod(): http_pb.FoldHTTPMethodMap[keyof http_pb.FoldHTTPMethodMap];
+  setHttpMethod(
+    value: http_pb.FoldHTTPMethodMap[keyof http_pb.FoldHTTPMethodMap]
+  ): void;
 
-  getHandler(): string;
-  setHandler(value: string): void;
-
-  getPathSpec(): string;
-  setPathSpec(value: string): void;
+  getRoute(): string;
+  setRoute(value: string): void;
 
   serializeBinary(): Uint8Array;
   toObject(includeInstance?: boolean): Route.AsObject;
@@ -155,22 +155,7 @@ export class Route extends jspb.Message {
 
 export namespace Route {
   export type AsObject = {
-    httpMethod: HttpMethodMap[keyof HttpMethodMap];
-    handler: string;
-    pathSpec: string;
+    httpMethod: http_pb.FoldHTTPMethodMap[keyof http_pb.FoldHTTPMethodMap];
+    route: string;
   };
 }
-
-export interface HttpMethodMap {
-  GET: 0;
-  HEAD: 1;
-  POST: 2;
-  PUT: 3;
-  DELETE: 4;
-  CONNECT: 5;
-  OPTIONS: 6;
-  TRACE: 7;
-  PATCH: 8;
-}
-
-export const HttpMethod: HttpMethodMap;

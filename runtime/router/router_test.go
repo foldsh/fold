@@ -3,6 +3,7 @@ package router
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"testing"
@@ -10,7 +11,7 @@ import (
 	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
-	sv "github.com/foldsh/fold/runtime/supervisor"
+	"github.com/foldsh/fold/runtime/types"
 )
 
 const port = ":12345"
@@ -25,167 +26,233 @@ func TestServeHTTP(t *testing.T) {
 		requests []testReq
 	}{
 		{
-			"PlainPath",
-			mkmanifest(mkroute("GET", "get", "/get")),
+			"Should match simple routes.",
+			mkmanifest(mkroute("GET", "/get")),
 			[]testReq{
 				{
-					"GET",
-					"/get",
-					200,
-					map[string]interface{}{
-						"handler": "get",
-						"path":    "/get",
+					method:         "GET",
+					path:           "/get",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"route": "/get",
+						"path":  "/get",
 					},
 				},
-				{"POST", "/get", 405, methodNotAllowed},
-				{"PUT", "/get", 405, methodNotAllowed},
-				{"GET", "/foo", 404, resourceNotFound},
+				{
+					method:         "POST",
+					path:           "/get",
+					expectedStatus: 405,
+					expectedBody:   methodNotAllowed,
+				},
+				{
+					method:         "PUT",
+					path:           "/get",
+					expectedStatus: 405,
+					expectedBody:   methodNotAllowed,
+				},
+				{
+					method:         "GET",
+					path:           "/foo",
+					expectedStatus: 404,
+					expectedBody:   resourceNotFound,
+				},
 			},
 		},
 		{
-			"PathParams",
-			mkmanifest(mkroute("GET", "foo", "/foo/:bar/:baz")),
+			"Should match routes with parameters",
+			mkmanifest(mkroute("GET", "/foo/:bar/:baz")),
 			[]testReq{
 				{
-					"GET",
-					"/foo/a/b",
-					200,
-					map[string]interface{}{
-						"handler": "foo",
-						"path":    "/foo/:bar/:baz",
-						"bar":     "a",
-						"baz":     "b",
+					method:         "GET",
+					path:           "/foo/a/b",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"path":  "/foo/a/b",
+						"route": "/foo/:bar/:baz",
+						"bar":   "a",
+						"baz":   "b",
 					},
 				},
 				{
-					"GET",
-					"/foo/y/z",
-					200,
-					map[string]interface{}{
-						"handler": "foo",
-						"path":    "/foo/:bar/:baz",
-						"bar":     "y",
-						"baz":     "z",
+					method:         "GET",
+					path:           "/foo/y/z",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"path":  "/foo/y/z",
+						"route": "/foo/:bar/:baz",
+						"bar":   "y",
+						"baz":   "z",
 					},
 				},
-				{"GET", "/baz/y/z", 404, resourceNotFound},
-				{"POST", "/foo/y/z", 405, methodNotAllowed},
+				{
+					method:         "GET",
+					path:           "/baz/y/z",
+					expectedStatus: 404,
+					expectedBody:   resourceNotFound,
+				},
+				{
+					method:         "POST",
+					path:           "/foo/y/z",
+					expectedStatus: 405,
+					expectedBody:   methodNotAllowed,
+				},
 			},
 		},
 		{
-			"QueryParams",
-			mkmanifest(mkroute("GET", "foo", "/foo")),
+			"Should parse query params",
+			mkmanifest(mkroute("GET", "/foo")),
 			[]testReq{
 				{
-					"GET",
-					"/foo?bar=a&baz=b",
-					200,
-					map[string]interface{}{
-						"handler": "foo",
-						"path":    "/foo",
-						"bar":     "a",
-						"baz":     "b",
+					method:         "GET",
+					path:           "/foo?bar=a&baz=b",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"route": "/foo",
+						"path":  "/foo",
+						"bar":   "a",
+						"baz":   "b",
 					},
 				},
 				{
-					"GET",
-					"/foo?bar=y&baz=z",
-					200,
-					map[string]interface{}{
-						"handler": "foo",
-						"path":    "/foo",
-						"bar":     "y",
-						"baz":     "z",
+					method:         "GET",
+					path:           "/foo?bar=y&baz=z",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"route": "/foo",
+						"path":  "/foo",
+						"bar":   "y",
+						"baz":   "z",
 					},
 				},
 				{
-					"GET",
-					"/foo?bar=a&bar=b&bar=c",
-					200,
-					map[string]interface{}{
-						"handler": "foo",
-						"path":    "/foo",
+					method:         "GET",
+					path:           "/foo?bar=a&bar=b&bar=c",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"route": "/foo",
+						"path":  "/foo",
 						// It's an array of interface{} because it makes using
 						// go-cmp with unmarhsaled json much easier.
 						"bar": []interface{}{"a", "b", "c"},
 					},
 				},
-				{"GET", "/foo/y/z", 404, resourceNotFound},
+				{
+					method:         "GET",
+					path:           "/foo/y/z",
+					expectedStatus: 404,
+					expectedBody:   resourceNotFound,
+				},
 			},
 		},
 		{
-			"MultipleRoutes",
+			"Should allow multiple routes to be set",
 			mkmanifest(
-				mkroute("GET", "getFoo", "/foo"),
-				mkroute("PUT", "putFoo", "/foo"),
-				mkroute("GET", "getBar", "/bar"),
-				mkroute("DELETE", "deleteBar", "/bar"),
+				mkroute("GET", "/foo"),
+				mkroute("PUT", "/foo"),
+				mkroute("GET", "/bar"),
+				mkroute("DELETE", "/bar"),
 			),
 			[]testReq{
 				{
-					"GET",
-					"/foo",
-					200,
-					map[string]interface{}{
-						"handler": "getFoo",
-						"path":    "/foo",
+					method:         "GET",
+					path:           "/foo",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"route": "/foo",
+						"path":  "/foo",
 					},
 				},
 				{
-					"PUT",
-					"/foo",
-					200,
-					map[string]interface{}{
-						"handler": "putFoo",
-						"path":    "/foo",
-					},
-				},
-				{"DELETE", "/foo", 405, methodNotAllowed},
-				{
-					"GET",
-					"/bar",
-					200,
-					map[string]interface{}{
-						"handler": "getBar",
-						"path":    "/bar",
+					method:         "PUT",
+					path:           "/foo",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"route": "/foo",
+						"path":  "/foo",
 					},
 				},
 				{
-					"DELETE",
-					"/bar",
-					200,
-					map[string]interface{}{
-						"handler": "deleteBar",
-						"path":    "/bar",
+					method:         "DELETE",
+					path:           "/foo",
+					expectedStatus: 405,
+					expectedBody:   methodNotAllowed,
+				},
+				{
+					method:         "GET",
+					path:           "/bar",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"route": "/bar",
+						"path":  "/bar",
 					},
 				},
-				{"PUT", "/bar", 405, methodNotAllowed},
-				{"GET", "/baz", 404, resourceNotFound},
+				{
+					method:         "DELETE",
+					path:           "/bar",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"route": "/bar",
+						"path":  "/bar",
+					},
+				},
+				{
+					method:         "PUT",
+					path:           "/bar",
+					expectedStatus: 405,
+					expectedBody:   methodNotAllowed,
+				},
+				{
+					method:         "GET",
+					path:           "/baz",
+					expectedStatus: 404,
+					expectedBody:   resourceNotFound,
+				},
 			},
 		},
 		{
-			"Complex",
+			"Should process a complex route correctly",
 			mkmanifest(
-				mkroute("GET", "complex", "/complex/:foo/query/:bar"),
+				mkroute("GET", "/complex/:foo/query/:bar"),
 			),
 			[]testReq{
 				{
-					"GET",
-					"/complex/hello/query/world?baz=1&baz=2&baz=3&solo=param",
-					200,
-					map[string]interface{}{
-						"handler": "complex",
-						"path":    "/complex/:foo/query/:bar",
-						"foo":     "hello",
-						"bar":     "world",
-						"baz":     []interface{}{"1", "2", "3"},
-						"solo":    "param",
+					method:         "GET",
+					path:           "/complex/hello/query/world?baz=1&baz=2&baz=3&solo=param",
+					expectedStatus: 200,
+					expectedBody: map[string]interface{}{
+						"path":  "/complex/hello/query/world",
+						"route": "/complex/:foo/query/:bar",
+						"foo":   "hello",
+						"bar":   "world",
+						"baz":   []interface{}{"1", "2", "3"},
+						"solo":  "param",
+					},
+				},
+			},
+		},
+		{
+			"Should pass on a request body",
+			mkmanifest(mkroute("POST", "/post")),
+			[]testReq{
+				{
+					method:         "POST",
+					path:           "/post",
+					expectedStatus: 200,
+					body: map[string]interface{}{
+						"foo": "bar",
+					},
+					expectedBody: map[string]interface{}{
+						"path":  "/post",
+						"route": "/post",
+						"body": map[string]interface{}{
+							"foo": "bar",
+						},
 					},
 				},
 			},
 		},
 	}
-	ms := &mockSupervisor{t}
+	ms := &mockRequestDoer{t}
 	router := NewRouter(logger, ms)
 	go func() {
 		http.ListenAndServe(port, router)
@@ -194,7 +261,7 @@ func TestServeHTTP(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			router.Configure(tc.manifest)
 			// Test healthz
-			status, body := req(logger, t, "GET", "/_foldadmin/healthz")
+			status, body := req(logger, t, "GET", "/_foldadmin/healthz", nil)
 			if status != 200 {
 				t.Errorf("Expected 200 response from healthz but found %d", status)
 			}
@@ -207,7 +274,7 @@ func TestServeHTTP(t *testing.T) {
 			// Test the manifest
 			expectation := &bytes.Buffer{}
 			manifest.WriteJSON(expectation, tc.manifest)
-			status, actual := req(logger, t, "GET", "/_foldadmin/manifest")
+			status, actual := req(logger, t, "GET", "/_foldadmin/manifest", nil)
 			if status != 200 {
 				t.Errorf("Expected 200 response from manifest but found %d", status)
 			}
@@ -219,7 +286,7 @@ func TestServeHTTP(t *testing.T) {
 			)
 			for _, r := range tc.requests {
 				t.Run(fmt.Sprintf("%s:%s", r.method, r.path), func(t *testing.T) {
-					status, body := req(logger, t, r.method, r.path)
+					status, body := req(logger, t, r.method, r.path, r.body)
 					if status != r.expectedStatus {
 						t.Errorf("expected status of %d but found %d", r.expectedStatus, status)
 					}
@@ -238,21 +305,42 @@ func TestServeHTTP(t *testing.T) {
 type testReq struct {
 	method         string
 	path           string
+	body           map[string]interface{}
 	expectedStatus int
 	expectedBody   map[string]interface{}
 }
 
-type mockSupervisor struct {
+type mockRequestDoer struct {
 	t *testing.T
 }
 
-func (ms *mockSupervisor) DoRequest(req *sv.Request) (*sv.Response, error) {
+func (ms *mockRequestDoer) DoRequest(req *types.Request) (*types.Response, error) {
+	// First up we'll run some generic assertions about the request being
+	// formed.
+	if req.Proto != "HTTP/1.1" {
+		ms.t.Errorf("Expected HTTP1.1 but found %s", req.Proto)
+	}
+	if req.ProtoMajor != 1 {
+		ms.t.Errorf("Expected proto major of 1 but found %d", req.ProtoMajor)
+	}
+	if req.ProtoMinor != 1 {
+		ms.t.Errorf("Expected proto minor of 1 but found %d", req.ProtoMinor)
+	}
+	if int(req.ContentLength) != len(req.Body) {
+		ms.t.Errorf("ContentLength should equal body length")
+	}
+	if req.Host != "localhost:12345" {
+		ms.t.Errorf("Expected host of localhost:12345 but found %s", req.Host)
+	}
 	// This doesn't do anything useful but by sending back this mix of
 	// of data in the response it's very easy to verify that the request
 	// made its way through here appropriately.
 	body := make(map[string]interface{})
-	body["handler"] = req.Handler
+	body["route"] = req.Route
 	body["path"] = req.Path
+	if len(req.Body) != 0 {
+		body["body"] = testutils.UnmarshalJSON(ms.t, req.Body)
+	}
 	for key, value := range req.PathParams {
 		body[key] = value
 	}
@@ -263,7 +351,7 @@ func (ms *mockSupervisor) DoRequest(req *sv.Request) (*sv.Response, error) {
 			body[key] = value
 		}
 	}
-	return &sv.Response{Status: 200, Body: testutils.MarshalJSON(ms.t, body)}, nil
+	return &types.Response{Status: 200, Body: testutils.MarshalJSON(ms.t, body)}, nil
 }
 
 func mkmanifest(routes ...*manifest.Route) *manifest.Manifest {
@@ -273,21 +361,35 @@ func mkmanifest(routes ...*manifest.Route) *manifest.Manifest {
 	}
 }
 
-func mkroute(method, handler string, pathSpec string) *manifest.Route {
-	httpMethod, err := manifest.HttpMethodFromString(method)
+func mkroute(method, route string) *manifest.Route {
+	httpMethod, err := manifest.HTTPMethodFromString(method)
 	if err != nil {
 		panic(err)
 	}
 	return &manifest.Route{
 		HttpMethod: httpMethod,
-		Handler:    handler,
-		PathSpec:   pathSpec,
+		Route:      route,
 	}
 }
 
-func req(l logging.Logger, t *testing.T, method string, path string) (int, []byte) {
+func req(
+	l logging.Logger,
+	t *testing.T,
+	method string,
+	path string,
+	body map[string]interface{},
+) (int, []byte) {
 	client := http.Client{}
-	request, err := http.NewRequest(method, fmt.Sprintf("http://localhost%s%s", port, path), nil)
+	var bodyReader io.Reader
+	if body != nil {
+		jsonBody := testutils.MarshalJSON(t, body)
+		bodyReader = bytes.NewBuffer(jsonBody)
+	}
+	request, err := http.NewRequest(
+		method,
+		fmt.Sprintf("http://localhost%s%s", port, path),
+		bodyReader,
+	)
 	if method == "PUT" || method == "POST" {
 		request.Header.Add("Content-Type", "application/json")
 	}
@@ -300,9 +402,9 @@ func req(l logging.Logger, t *testing.T, method string, path string) (int, []byt
 		t.Fatalf("failed to do request: %v ", err)
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	resBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatalf("failed to read body: %v ", err)
 	}
-	return resp.StatusCode, body
+	return resp.StatusCode, resBody
 }

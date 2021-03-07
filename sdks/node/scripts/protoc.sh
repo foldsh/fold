@@ -12,4 +12,4 @@ protoc \
   --plugin="protoc-gen-ts=node_modules/.bin/protoc-gen-ts" \
   --js_out="import_style=commonjs,binary:./dist/proto" \
   --ts_out="./dist/proto" \
-  ../../proto/manifest.proto \
+  ../../proto/manifest.proto ../../proto/http.proto \

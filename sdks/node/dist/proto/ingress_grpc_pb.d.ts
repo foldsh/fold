@@ -4,6 +4,7 @@
 // file: ingress.proto
 
 import * as ingress_pb from "./ingress_pb";
+import * as http_pb from "./http_pb";
 import * as manifest_pb from "./manifest_pb";
 import * as grpc from "@grpc/grpc-js";
 
@@ -13,7 +14,10 @@ interface IFoldIngressService
     ingress_pb.ManifestReq,
     manifest_pb.Manifest
   >;
-  doRequest: grpc.MethodDefinition<ingress_pb.Request, ingress_pb.Response>;
+  doRequest: grpc.MethodDefinition<
+    http_pb.FoldHTTPRequest,
+    http_pb.FoldHTTPResponse
+  >;
 }
 
 export const FoldIngressService: IFoldIngressService;
@@ -23,7 +27,10 @@ export interface IFoldIngressServer extends grpc.UntypedServiceImplementation {
     ingress_pb.ManifestReq,
     manifest_pb.Manifest
   >;
-  doRequest: grpc.handleUnaryCall<ingress_pb.Request, ingress_pb.Response>;
+  doRequest: grpc.handleUnaryCall<
+    http_pb.FoldHTTPRequest,
+    http_pb.FoldHTTPResponse
+  >;
 }
 
 export class FoldIngressClient extends grpc.Client {
@@ -48,18 +55,18 @@ export class FoldIngressClient extends grpc.Client {
     callback: grpc.requestCallback<manifest_pb.Manifest>
   ): grpc.ClientUnaryCall;
   doRequest(
-    argument: ingress_pb.Request,
-    callback: grpc.requestCallback<ingress_pb.Response>
+    argument: http_pb.FoldHTTPRequest,
+    callback: grpc.requestCallback<http_pb.FoldHTTPResponse>
   ): grpc.ClientUnaryCall;
   doRequest(
-    argument: ingress_pb.Request,
+    argument: http_pb.FoldHTTPRequest,
     metadataOrOptions: grpc.Metadata | grpc.CallOptions | null,
-    callback: grpc.requestCallback<ingress_pb.Response>
+    callback: grpc.requestCallback<http_pb.FoldHTTPResponse>
   ): grpc.ClientUnaryCall;
   doRequest(
-    argument: ingress_pb.Request,
+    argument: http_pb.FoldHTTPRequest,
     metadata: grpc.Metadata | null,
     options: grpc.CallOptions | null,
-    callback: grpc.requestCallback<ingress_pb.Response>
+    callback: grpc.requestCallback<http_pb.FoldHTTPResponse>
   ): grpc.ClientUnaryCall;
 }

@@ -5,7 +5,9 @@ import (
 	"io"
 	"os"
 
+	"github.com/foldsh/fold/version"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
 )
 
 func UpdateTemplates(out io.Writer, templatesPath string) error {
@@ -41,7 +43,16 @@ func pullTemplates(path string) error {
 	if err != nil {
 		return err
 	}
-	return w.Pull(&git.PullOptions{RemoteName: "origin", Depth: 1})
+	// We want to pull only the version of the templates that is tagged for this version
+	// of the cli.
+	return w.Pull(
+		&git.PullOptions{
+			RemoteName:    "origin",
+			ReferenceName: plumbing.NewTagReferenceName(version.FoldVersion.String()),
+			Depth:         1,
+			SingleBranch:  true,
+		},
+	)
 }
 
 func openWorkingTree(path string) (*git.Worktree, error) {

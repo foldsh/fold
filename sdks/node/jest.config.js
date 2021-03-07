@@ -1,3 +1,5 @@
+process.env.FOLD_STAGE = "TEST_LOCAL";
+
 module.exports = {
   testEnvironment: "node",
   roots: ["<rootDir>/src"],

@@ -1,15 +1,13 @@
-import { unlinkSync } from "fs";
 import { credentials } from "@grpc/grpc-js";
 import { FoldIngressClient } from "../../dist/proto/ingress_grpc_pb";
 import { Manifest } from "../../dist/proto/manifest_pb";
-import { ManifestReq, Request, Response } from "../../dist/proto/ingress_pb";
+import { ManifestReq } from "../../dist/proto/ingress_pb";
+import { FoldHTTPRequest, FoldHTTPResponse } from "../../dist/proto/http_pb";
 
 export class GrpcClient {
   private client: FoldIngressClient;
-  private sockAddr: string;
 
   constructor(sockAddr: string) {
-    this.sockAddr = sockAddr;
     this.client = new FoldIngressClient(
       `unix://${sockAddr}`,
       credentials.createInsecure()
@@ -18,7 +16,6 @@ export class GrpcClient {
 
   public stop(): void {
     this.client.close();
-    unlinkSync(this.sockAddr);
   }
 
   public async getManifest(): Promise<Manifest> {
@@ -32,9 +29,9 @@ export class GrpcClient {
     });
   }
 
-  public async doRequest(req: Request): Promise<Response> {
+  public async doRequest(req: FoldHTTPRequest): Promise<FoldHTTPResponse> {
     return new Promise((resolve, reject): void => {
-      this.client.doRequest(req, (err, res?: Response) => {
+      this.client.doRequest(req, (err, res?: FoldHTTPResponse) => {
         if (err) {
           return reject(err);
         }

@@ -1,7 +1,6 @@
 package router
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 
@@ -9,7 +8,7 @@ import (
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
-	sv "github.com/foldsh/fold/runtime/supervisor"
+	"github.com/foldsh/fold/runtime/types"
 )
 
 type Router interface {
@@ -21,7 +20,7 @@ type Router interface {
 }
 
 type RequestDoer interface {
-	DoRequest(*sv.Request) (*sv.Response, error)
+	DoRequest(*types.Request) (*types.Response, error)
 }
 
 // Builds a router from a service manifest. While we could fetch the manfiest
@@ -77,7 +76,7 @@ func (fr *foldRouter) Configure(m *manifest.Manifest) {
 	for _, route := range m.Routes {
 		router.Handle(
 			route.HttpMethod.String(),
-			route.PathSpec,
+			route.Route,
 			fr.makeHandler(route),
 		)
 	}
@@ -106,20 +105,11 @@ func (fr *foldRouter) makeHandler(route *manifest.Route) httprouter.Handle {
 				return
 			}
 		}
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(r.Body)
-		req := sv.Request{
-			HttpMethod:  r.Method,
-			Handler:     route.Handler,
-			Path:        route.PathSpec,
-			Body:        buf.Bytes(),
-			Headers:     r.Header,
-			PathParams:  encodePathParams(ps),
-			QueryParams: r.URL.Query(),
-		}
-		res, err := fr.doer.DoRequest(&req)
+		req := types.ReqFromHTTP(r, route.Route, encodePathParams(ps))
+		res, err := fr.doer.DoRequest(req)
 		if err != nil {
-			// TODO write a 500 response
+			httpError(w, 500, fmt.Sprintf(`{"title": "Runtime error", "detail": "%v"}`, err))
+			return
 		}
 		// Write the status code
 		w.WriteHeader(int(res.Status))
@@ -134,10 +124,12 @@ func (fr *foldRouter) makeHandler(route *manifest.Route) httprouter.Handle {
 		body := []byte(res.Body)
 		n, err := w.Write(body)
 		if err != nil {
-			// TODO write a 500 response
+			httpError(w, 500, fmt.Sprintf(`{"title": "Runtime error", "detail": "%v"}`, err))
+			return
 		}
 		if n != len(body) {
-			// TODO try to recover by writing more? or 500
+			httpError(w, 500, `{"title": "Runtime error", "detail": "Failed to read entire body."}`)
+			return
 		}
 	}
 }

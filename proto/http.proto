@@ -1,0 +1,96 @@
+syntax = "proto3";
+package http;
+
+option go_package = "github.com/foldsh/fold/manifest";
+
+message FoldHTTPRequest {
+
+  // The HTTP Method for the request.
+  FoldHTTPMethod http_method = 1;
+
+  // The full URL of the HTTP request.
+  string path = 2;
+
+  // The raw query from the request line, without the '?'
+  string raw_query = 3;
+
+  // The raw fragment from the request line, if any
+  string fragment = 4;
+
+  // The version of the HTTP Protocol being used.
+  FoldHTTPProto http_proto = 5;
+
+  // The value of the Host header, which provides the host and port
+  // information from the target URI.
+  // https://tools.ietf.org/html/rfc7230#section-5.4
+  string host = 6;
+
+  // The network address of the request sender.
+  string remote_addr = 7;
+
+	// The request_uri is the unmodified request-target of the
+	// Request-Line as sent by the client to the server.
+  // https://tools.ietf.org/html/rfc7230#section-3.1.1
+  string request_uri = 8;
+
+  // The length, in bytes, of the body.
+  int64 content_length = 9;
+
+  // The body of the HTTP request. This will often be a JSON string
+  // but could be anything if the appropriate content type is set 
+  // in the headers.
+  bytes body = 10;
+
+  // The HTTP headers.
+  map<string, StringArray> headers = 11;
+
+  // The parsed path params.
+  map<string, string> path_params = 12;
+
+  // The parsed query params.
+  map<string, StringArray> query_params = 13;
+
+  // The path specification matched by the router.
+  // This is for internal use by fold only.
+  string route = 14;
+}
+
+message FoldHTTPResponse {
+  // The HTTP status code for the response.
+  int32 status = 1;
+
+  // The body of the HTTP response. As with the Request, it will
+  // most often be a JSON string but the headers say what it really is.
+  bytes body = 2;
+
+  // The HTTP headers for the response.
+  map<string, StringArray> headers = 3;
+}
+
+// All HTTP Methods
+enum FoldHTTPMethod {
+  GET = 0;
+  HEAD = 1;
+  POST = 2;
+  PUT = 3;
+  DELETE = 4;
+  CONNECT = 5;
+  OPTIONS = 6;
+  TRACE = 7;
+  PATCH = 8;
+}
+
+message FoldHTTPProto {
+  // The full string name of the protocol, e.g. HTTP/2.0
+  string proto = 1;
+
+  // The major version of the HTTP protocol, e.g. 2
+  int32 major = 2;
+
+  // The minor version of the hTTP protocol, e.g. 2
+  int32 minor = 3; 
+}
+
+message StringArray {
+  repeated string values = 1;
+}

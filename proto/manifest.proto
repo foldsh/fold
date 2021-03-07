@@ -7,6 +7,8 @@ package manifest;
 
 option go_package = "github.com/foldsh/fold/manifest";
 
+import "http.proto";
+
 // A manifest describing everything required to build and deploy a service.
 message Manifest {
   // The name of the service.
@@ -52,25 +54,9 @@ message Version {
 // A route defined by a service.
 message Route {
   // The HTTP method which this Route handles.
-  HttpMethod http_method = 1;
+  http.FoldHTTPMethod http_method = 1;
 
-  // The identifier of the handler that will handle the route.
-  string handler = 2;
-
-  // The path pattern that will match this route.
-  string path_spec = 3;  
-}
-
-// All HTTP Methods
-enum HttpMethod {
-  GET = 0;
-  HEAD = 1;
-  POST = 2;
-  PUT = 3;
-  DELETE = 4;
-  CONNECT = 5;
-  OPTIONS = 6;
-  TRACE = 7;
-  PATCH = 8;
+  // The route specification.
+  string route = 2;  
 }
 

@@ -14,8 +14,9 @@ var jspb = require("google-protobuf");
 var goog = jspb;
 var global = Function("return this")();
 
+var http_pb = require("./http_pb.js");
+goog.object.extend(proto, http_pb);
 goog.exportSymbol("proto.manifest.BuildInfo", null, global);
-goog.exportSymbol("proto.manifest.HttpMethod", null, global);
 goog.exportSymbol("proto.manifest.Manifest", null, global);
 goog.exportSymbol("proto.manifest.Route", null, global);
 goog.exportSymbol("proto.manifest.Version", null, global);
@@ -790,8 +791,7 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
     var f,
       obj = {
         httpMethod: jspb.Message.getFieldWithDefault(msg, 1, 0),
-        handler: jspb.Message.getFieldWithDefault(msg, 2, ""),
-        pathSpec: jspb.Message.getFieldWithDefault(msg, 3, ""),
+        route: jspb.Message.getFieldWithDefault(msg, 2, ""),
       };
 
     if (includeInstance) {
@@ -827,16 +827,12 @@ proto.manifest.Route.deserializeBinaryFromReader = function (msg, reader) {
     var field = reader.getFieldNumber();
     switch (field) {
       case 1:
-        var value = /** @type {!proto.manifest.HttpMethod} */ (reader.readEnum());
+        var value = /** @type {!proto.http.FoldHTTPMethod} */ (reader.readEnum());
         msg.setHttpMethod(value);
         break;
       case 2:
         var value = /** @type {string} */ (reader.readString());
-        msg.setHandler(value);
-        break;
-      case 3:
-        var value = /** @type {string} */ (reader.readString());
-        msg.setPathSpec(value);
+        msg.setRoute(value);
         break;
       default:
         reader.skipField();
@@ -869,22 +865,18 @@ proto.manifest.Route.serializeBinaryToWriter = function (message, writer) {
   if (f !== 0.0) {
     writer.writeEnum(1, f);
   }
-  f = message.getHandler();
+  f = message.getRoute();
   if (f.length > 0) {
     writer.writeString(2, f);
-  }
-  f = message.getPathSpec();
-  if (f.length > 0) {
-    writer.writeString(3, f);
   }
 };
 
 /**
- * optional HttpMethod http_method = 1;
- * @return {!proto.manifest.HttpMethod}
+ * optional http.FoldHTTPMethod http_method = 1;
+ * @return {!proto.http.FoldHTTPMethod}
  */
 proto.manifest.Route.prototype.getHttpMethod = function () {
-  return /** @type {!proto.manifest.HttpMethod} */ (jspb.Message.getFieldWithDefault(
+  return /** @type {!proto.http.FoldHTTPMethod} */ (jspb.Message.getFieldWithDefault(
     this,
     1,
     0
@@ -892,7 +884,7 @@ proto.manifest.Route.prototype.getHttpMethod = function () {
 };
 
 /**
- * @param {!proto.manifest.HttpMethod} value
+ * @param {!proto.http.FoldHTTPMethod} value
  * @return {!proto.manifest.Route} returns this
  */
 proto.manifest.Route.prototype.setHttpMethod = function (value) {
@@ -900,10 +892,10 @@ proto.manifest.Route.prototype.setHttpMethod = function (value) {
 };
 
 /**
- * optional string handler = 2;
+ * optional string route = 2;
  * @return {string}
  */
-proto.manifest.Route.prototype.getHandler = function () {
+proto.manifest.Route.prototype.getRoute = function () {
   return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
 };
 
@@ -911,39 +903,8 @@ proto.manifest.Route.prototype.getHandler = function () {
  * @param {string} value
  * @return {!proto.manifest.Route} returns this
  */
-proto.manifest.Route.prototype.setHandler = function (value) {
+proto.manifest.Route.prototype.setRoute = function (value) {
   return jspb.Message.setProto3StringField(this, 2, value);
-};
-
-/**
- * optional string path_spec = 3;
- * @return {string}
- */
-proto.manifest.Route.prototype.getPathSpec = function () {
-  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
-};
-
-/**
- * @param {string} value
- * @return {!proto.manifest.Route} returns this
- */
-proto.manifest.Route.prototype.setPathSpec = function (value) {
-  return jspb.Message.setProto3StringField(this, 3, value);
-};
-
-/**
- * @enum {number}
- */
-proto.manifest.HttpMethod = {
-  GET: 0,
-  HEAD: 1,
-  POST: 2,
-  PUT: 3,
-  DELETE: 4,
-  CONNECT: 5,
-  OPTIONS: 6,
-  TRACE: 7,
-  PATCH: 8,
 };
 
 goog.object.extend(exports, proto.manifest);

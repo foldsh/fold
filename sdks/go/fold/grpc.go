@@ -41,21 +41,20 @@ func (gs *grpcServer) GetManifest(
 
 func (gs *grpcServer) DoRequest(
 	ctx context.Context,
-	in *pb.Request,
-) (*pb.Response, error) {
+	in *manifest.FoldHTTPRequest,
+) (*manifest.FoldHTTPResponse, error) {
 	req := &Request{
-		HttpMethod:  in.HttpMethod.String(),
-		Handler:     in.Handler,
-		Path:        in.Path,
+		HTTPMethod:  in.HttpMethod.String(),
 		Headers:     decodeMapStringArray(in.Headers),
 		PathParams:  in.PathParams,
 		QueryParams: decodeMapStringArray(in.QueryParams),
+		Route:       in.Route,
 	}
-	if req.HttpMethod == "PUT" || req.HttpMethod == "POST" {
+	if req.HTTPMethod == "PUT" || req.HTTPMethod == "POST" {
 		var body map[string]interface{}
 		err := json.Unmarshal(in.Body, &body)
 		if err != nil {
-			return &pb.Response{
+			return &manifest.FoldHTTPResponse{
 				Status: 400,
 				Body:   []byte(`{"title":"Invalid JSON specified in body"}`),
 			}, nil
@@ -70,22 +69,22 @@ func (gs *grpcServer) DoRequest(
 		// so that this (hopefully) never makes it into production.
 		gs.logger.Panicf("failed to marshal json: %v", err)
 	}
-	return &pb.Response{
+	return &manifest.FoldHTTPResponse{
 		Status:  int32(res.StatusCode),
 		Body:    resBody,
 		Headers: encodeMapStringArray(res.Headers),
 	}, nil
 }
 
-func encodeMapStringArray(m map[string][]string) map[string]*pb.StringArray {
-	result := map[string]*pb.StringArray{}
+func encodeMapStringArray(m map[string][]string) map[string]*manifest.StringArray {
+	result := map[string]*manifest.StringArray{}
 	for key, value := range m {
-		result[key] = &pb.StringArray{Values: value}
+		result[key] = &manifest.StringArray{Values: value}
 	}
 	return result
 }
 
-func decodeMapStringArray(m map[string]*pb.StringArray) map[string][]string {
+func decodeMapStringArray(m map[string]*manifest.StringArray) map[string][]string {
 	result := map[string][]string{}
 	for key, value := range m {
 		result[key] = value.Values

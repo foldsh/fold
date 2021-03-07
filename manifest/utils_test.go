@@ -8,8 +8,6 @@ import (
 
 	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/manifest"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 var (
@@ -23,11 +21,11 @@ var (
 			Path:       "./build/path",
 		},
 		Routes: []*manifest.Route{
-			{HttpMethod: manifest.HttpMethod_GET, Handler: "get", PathSpec: "/get/:var"},
-			{HttpMethod: manifest.HttpMethod_PUT, Handler: "put", PathSpec: "/put/:var"},
-			{HttpMethod: manifest.HttpMethod_POST, Handler: "post", PathSpec: "/post/:var"},
-			{HttpMethod: manifest.HttpMethod_DELETE, Handler: "delete", PathSpec: "/delete/:var"},
-			{HttpMethod: manifest.HttpMethod_PATCH, Handler: "patch", PathSpec: "/patch/:var"},
+			{HttpMethod: manifest.FoldHTTPMethod_GET, Route: "/get/:var"},
+			{HttpMethod: manifest.FoldHTTPMethod_PUT, Route: "/put/:var"},
+			{HttpMethod: manifest.FoldHTTPMethod_POST, Route: "/post/:var"},
+			{HttpMethod: manifest.FoldHTTPMethod_DELETE, Route: "/delete/:var"},
+			{HttpMethod: manifest.FoldHTTPMethod_PATCH, Route: "/patch/:var"},
 		},
 	}
 	j = map[string]interface{}{
@@ -44,23 +42,11 @@ var (
 			"path":       "./build/path",
 		},
 		"routes": []interface{}{
-			map[string]interface{}{"httpMethod": "GET", "handler": "get", "pathSpec": "/get/:var"},
-			map[string]interface{}{"httpMethod": "PUT", "handler": "put", "pathSpec": "/put/:var"},
-			map[string]interface{}{
-				"httpMethod": "POST",
-				"handler":    "post",
-				"pathSpec":   "/post/:var",
-			},
-			map[string]interface{}{
-				"httpMethod": "DELETE",
-				"handler":    "delete",
-				"pathSpec":   "/delete/:var",
-			},
-			map[string]interface{}{
-				"httpMethod": "PATCH",
-				"handler":    "patch",
-				"pathSpec":   "/patch/:var",
-			},
+			map[string]interface{}{"httpMethod": "GET", "route": "/get/:var"},
+			map[string]interface{}{"httpMethod": "PUT", "route": "/put/:var"},
+			map[string]interface{}{"httpMethod": "POST", "route": "/post/:var"},
+			map[string]interface{}{"httpMethod": "DELETE", "route": "/delete/:var"},
+			map[string]interface{}{"httpMethod": "PATCH", "route": "/patch/:var"},
 		},
 	}
 )
@@ -89,11 +75,5 @@ func TestReadJSON(t *testing.T) {
 	if err := manifest.ReadJSON(buf, result); err != nil {
 		t.Fatalf("%+v", err)
 	}
-	if diff := cmp.Diff(
-		m,
-		result,
-		cmpopts.IgnoreUnexported(manifest.Manifest{}, manifest.Version{}, manifest.BuildInfo{}, manifest.Route{}),
-	); diff != "" {
-		t.Errorf("Manifest read from JSON does not match exepctation(-want +got):\n%s", diff)
-	}
+	testutils.DiffManifest(t, m, result)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 	"github.com/foldsh/fold/runtime/supervisor/pb"
+	"github.com/foldsh/fold/runtime/types"
 )
 
 // ingressClient wraps the gRPC client to communicate with the service.
@@ -72,51 +73,14 @@ func (ic *ingressClient) getManifest(ctx context.Context) (*manifest.Manifest, e
 }
 
 // Submit a request to the service for processing.
-func (ic *ingressClient) doRequest(ctx context.Context, in *Request) (*Response, error) {
-	encoded, err := encodeRequest(in)
+func (ic *ingressClient) doRequest(
+	ctx context.Context,
+	in *types.Request,
+) (*types.Response, error) {
+	encoded, err := in.ToProto()
 	if err != nil {
 		return nil, err
 	}
 	res, err := ic.client.DoRequest(ctx, encoded)
-	return decodeResponse(res), err
-}
-
-func encodeRequest(req *Request) (*pb.Request, error) {
-	httpMethod, err := manifest.HttpMethodFromString(req.HttpMethod)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.Request{
-		HttpMethod:  httpMethod,
-		Handler:     req.Handler,
-		Path:        req.Path,
-		Body:        req.Body,
-		Headers:     encodeMapRepeatedString(req.Headers),
-		PathParams:  req.PathParams,
-		QueryParams: encodeMapRepeatedString(req.QueryParams),
-	}, nil
-}
-
-func decodeResponse(res *pb.Response) *Response {
-	return &Response{
-		Status:  int(res.Status),
-		Body:    res.Body,
-		Headers: decodeMapRepeatedString(res.Headers),
-	}
-}
-
-func encodeMapRepeatedString(m map[string][]string) map[string]*pb.StringArray {
-	result := map[string]*pb.StringArray{}
-	for key, value := range m {
-		result[key] = &pb.StringArray{Values: value}
-	}
-	return result
-}
-
-func decodeMapRepeatedString(m map[string]*pb.StringArray) map[string][]string {
-	result := map[string][]string{}
-	for key, value := range m {
-		result[key] = value.Values
-	}
-	return result
+	return types.ResFromProto(res), err
 }

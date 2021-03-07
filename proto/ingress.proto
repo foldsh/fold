@@ -7,6 +7,7 @@ package ingress;
 
 option go_package = "github.com/foldsh/fold/runtime/supervisor/pb";
 
+import "http.proto";
 import "manifest.proto";
 
 service FoldIngress {
@@ -14,50 +15,8 @@ service FoldIngress {
   rpc GetManifest(ManifestReq) returns (manifest.Manifest) {}
 
   // Ask the service to process an HTTP request.
-  rpc DoRequest(Request) returns (Response) {}
+  rpc DoRequest(http.FoldHTTPRequest) returns (http.FoldHTTPResponse) {}
 }
 
 message ManifestReq {}
 
-message Request {
-  // The HTTP Method for the request.
-  manifest.HttpMethod http_method = 1;
-
-  // A unique identifier for the handler within the service.
-  // This could be produced by a combination of the namespace and
-  // function name, or some other means, such as a UUID.
-  string handler = 2;
-
-  // The path of the HTTP request.
-  string path = 3;
-
-  // The body of the HTTP request. This will often be a JSON string
-  // but could be anything if the appropriate content type is set 
-  // in the headers.
-  bytes body = 4;
-
-  // The HTTP headers.
-  map<string, StringArray> headers = 5;
-
-  // The parsed path params.
-  map<string, string> path_params = 6;
-
-  // The parsed query params.
-  map<string, StringArray> query_params = 7;
-}
-
-message StringArray {
-  repeated string values = 1;
-}
-
-message Response {
-  // The HTTP status code for the response.
-  int32 status = 1;
-
-  // The body of the HTTP response. As with the Request, it will
-  // most often be a JSON string but the headers say what it really is.
-  bytes body = 2;
-
-  // The HTTP headers for the response.
-  map<string, StringArray> headers = 3;
-}

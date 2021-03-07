@@ -64,7 +64,7 @@ func displayServiceSummary(port int, services []*project.Service) {
 		print(fmt.Sprintf("    %s is available at %s", service.Name, serviceURL))
 		print(fmt.Sprintf("    %s routes:", service.Name))
 		for _, route := range m.Routes {
-			print(fmt.Sprintf("        %s %s%s", route.HttpMethod, serviceURL, route.PathSpec))
+			print(fmt.Sprintf("        %s %s%s", route.HttpMethod, serviceURL, route.Route))
 		}
 	}
 }

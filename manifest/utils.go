@@ -21,9 +21,9 @@ func (ihm InvalidHTTPMethod) Error() string {
 	return fmt.Sprintf("invalid HTTP method %s", ihm.HTTPMethod)
 }
 
-func HttpMethodFromString(method string) (HttpMethod, error) {
-	if value, ok := HttpMethod_value[method]; ok {
-		return HttpMethod(value), nil
+func HTTPMethodFromString(method string) (FoldHTTPMethod, error) {
+	if value, ok := FoldHTTPMethod_value[method]; ok {
+		return FoldHTTPMethod(value), nil
 	} else {
 		return -1, InvalidHTTPMethod{method}
 	}

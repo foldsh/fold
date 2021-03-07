@@ -33,6 +33,10 @@ foldgw-release: bin
 	./scripts/build.sh --bin foldgw --os "linux" --arch "amd64" --tar --images --latest-tag "scratch"
 .PHONY: foldgw-release
 
+publish: foldctl-release foldrt-release foldgw-release
+	./scripts/publish.sh
+.PHONY: publish
+
 protoc:
 	protoc --proto_path=proto \
 		--go_out=runtime/supervisor/pb \
@@ -43,7 +47,7 @@ protoc:
 	protoc --proto_path=proto \
 		--go_out=manifest \
 		--go_opt=paths=source_relative \
-		proto/manifest.proto
+		proto/manifest.proto proto/http.proto
 .PHONY: protoc
 
 genmocks:
@@ -66,5 +70,5 @@ install-gotools:
 	cd .gotools && if [[ ! -f go.mod ]]; then \
 		go mod init fold-tools ; \
 	fi
-	cd .gotools && go get -v github.com/golang/mock/mockgen@v1.5.0 github.com/mitchellh/gox
+	cd .gotools && go get -v github.com/golang/mock/mockgen@v1.5.0 github.com/mitchellh/gox github.com/mitchellh/gon
 .PHONY: gotools

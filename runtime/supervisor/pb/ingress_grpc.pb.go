@@ -22,7 +22,7 @@ type FoldIngressClient interface {
 	// Retrieve the manifest from the service.
 	GetManifest(ctx context.Context, in *ManifestReq, opts ...grpc.CallOption) (*manifest.Manifest, error)
 	// Ask the service to process an HTTP request.
-	DoRequest(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
+	DoRequest(ctx context.Context, in *manifest.FoldHTTPRequest, opts ...grpc.CallOption) (*manifest.FoldHTTPResponse, error)
 }
 
 type foldIngressClient struct {
@@ -42,8 +42,8 @@ func (c *foldIngressClient) GetManifest(ctx context.Context, in *ManifestReq, op
 	return out, nil
 }
 
-func (c *foldIngressClient) DoRequest(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *foldIngressClient) DoRequest(ctx context.Context, in *manifest.FoldHTTPRequest, opts ...grpc.CallOption) (*manifest.FoldHTTPResponse, error) {
+	out := new(manifest.FoldHTTPResponse)
 	err := c.cc.Invoke(ctx, "/ingress.FoldIngress/DoRequest", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ type FoldIngressServer interface {
 	// Retrieve the manifest from the service.
 	GetManifest(context.Context, *ManifestReq) (*manifest.Manifest, error)
 	// Ask the service to process an HTTP request.
-	DoRequest(context.Context, *Request) (*Response, error)
+	DoRequest(context.Context, *manifest.FoldHTTPRequest) (*manifest.FoldHTTPResponse, error)
 	mustEmbedUnimplementedFoldIngressServer()
 }
 
@@ -69,7 +69,7 @@ type UnimplementedFoldIngressServer struct {
 func (UnimplementedFoldIngressServer) GetManifest(context.Context, *ManifestReq) (*manifest.Manifest, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetManifest not implemented")
 }
-func (UnimplementedFoldIngressServer) DoRequest(context.Context, *Request) (*Response, error) {
+func (UnimplementedFoldIngressServer) DoRequest(context.Context, *manifest.FoldHTTPRequest) (*manifest.FoldHTTPResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DoRequest not implemented")
 }
 func (UnimplementedFoldIngressServer) mustEmbedUnimplementedFoldIngressServer() {}
@@ -104,7 +104,7 @@ func _FoldIngress_GetManifest_Handler(srv interface{}, ctx context.Context, dec 
 }
 
 func _FoldIngress_DoRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Request)
+	in := new(manifest.FoldHTTPRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func _FoldIngress_DoRequest_Handler(srv interface{}, ctx context.Context, dec fu
 		FullMethod: "/ingress.FoldIngress/DoRequest",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FoldIngressServer).DoRequest(ctx, req.(*Request))
+		return srv.(FoldIngressServer).DoRequest(ctx, req.(*manifest.FoldHTTPRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }

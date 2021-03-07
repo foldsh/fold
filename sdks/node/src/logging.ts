@@ -25,18 +25,21 @@ export function getLogger(service: string): Logger {
     defaultMeta: { service: service },
     transports: [new winston.transports.Console()],
   };
-  if (foldStage == "DEV") {
-    return winston.createLogger(baseConfig);
-  } else if (foldStage == "PROD") {
-    baseConfig.level = "info";
-    return winston.createLogger(baseConfig);
-  } else {
-    baseConfig.format = combine(
-      errors({ stack: true }),
-      timestamp(),
-      prettyPrint()
-    );
-    return winston.createLogger(baseConfig);
+  switch (foldStage) {
+    case "DEV":
+      return winston.createLogger(baseConfig);
+    case "PROD":
+      baseConfig.level = "info";
+      return winston.createLogger(baseConfig);
+    case "TEST_LOCAL":
+      return mockLogger();
+    default:
+      baseConfig.format = combine(
+        errors({ stack: true }),
+        timestamp(),
+        prettyPrint()
+      );
+      return winston.createLogger(baseConfig);
   }
 }
 
