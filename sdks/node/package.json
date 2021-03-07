@@ -1,6 +1,6 @@
 {
   "name": "@foldsh/sdk",
-  "version": "0.1.2-beta.0",
+  "version": "0.1.2-beta.1",
   "description": "The fold SDK for ts and js",
   "author": "Tom Firth",
   "license": "MPL-2.0",
@@ -12,8 +12,10 @@
   "scripts": {
     "test": "jest",
     "build": "tsc -p .",
-    "prepare": "rm -rf ./dist/ && npm run protoc && npm run build && npm run test",
-    "protoc": "mkdir -p ./dist/proto && ./scripts/protoc.sh && npx prettier -w ./dist/proto"
+    "clean": "rm -rf ./dist/",
+    "update-version": "npm version --allow-same-version $(go run ../../cmd/version/ | sed 's/v//')",
+    "protoc": "mkdir -p ./dist/proto && ./scripts/protoc.sh && npx prettier -w ./dist/proto",
+    "prepare": "npm run clean && npm run protoc && npm run build && npm run test && npm run update-version"
   },
   "repository": {
     "type": "git",
