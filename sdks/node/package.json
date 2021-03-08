@@ -1,6 +1,6 @@
 {
   "name": "@foldsh/sdk",
-  "version": "0.1.2-beta.1",
+  "version": "0.1.2",
   "description": "The fold SDK for ts and js",
   "author": "Tom Firth",
   "license": "MPL-2.0",
