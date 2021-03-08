@@ -33,7 +33,11 @@ foldgw-release: bin
 	./scripts/build.sh --bin foldgw --os "linux" --arch "amd64" --tar --images --latest-tag "scratch"
 .PHONY: foldgw-release
 
-publish: foldctl-release foldrt-release foldgw-release
+local-release: foldctl-release foldrt-release foldgw-release
+	@echo Finished building all binaries and image for release $(shell go run ./cmd/version)
+.PHONY: release
+
+publish: local-release
 	./scripts/publish.sh
 .PHONY: publish
 

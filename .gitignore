@@ -22,3 +22,6 @@ bin/
 
 # Tools
 .gotools
+
+# Other
+*.hcl

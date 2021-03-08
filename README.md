@@ -73,8 +73,8 @@ For example:
 
 ```
 tar xzvf foldctl-$VERSION-darwin-amd64.tar.gz
-chmod +x ./bin/release/foldctl/foldctl-$VERSION-linux-amd64
-sudo mv ./bin/release/foldctl/foldctl-$VERSION-linux-amd64 /usr/local/bin/foldctl
+chmod +x ./foldctl-$VERSION-linux-amd64
+sudo mv ./foldctl-$VERSION-linux-amd64 /usr/local/bin/foldctl
 ```
 
 ## Mac
@@ -85,18 +85,9 @@ For example:
 
 ```
 tar xzvf foldctl-$VERSION-darwin-amd64.tar.gz
-chmod +x ./bin/release/foldctl/foldctl-$VERSION-darwin-amd64
-sudo mv ./bin/release/foldctl/foldctl-$VERSION-darwin-amd64 /usr/local/bin/foldctl
+chmod +x ./foldctl-$VERSION-darwin-amd64
+sudo mv ./foldctl-$VERSION-darwin-amd64 /usr/local/bin/foldctl
 ```
-
-There is one additional step for MacOS. The project is not yet known to Apple and
-so MacOS will stop you from running the binary for security reasons. If you are 
-still willing to run the binary to test it out, you can do so by navigating to 
-it in finder, right clicking on it and choosing Open With > Your terminal 
-application.
-
-This will tell MacOS you trust the binary and from then on you will be able to 
-use like any other. Sorry about this, I'll get it sorted out ASAP.
 
 ## Build from Source
 
@@ -107,27 +98,33 @@ compiler available. Simply check out the source at the tag you want and run:
 
 # Speed Run
 
+To get started you will need to use the `new` command, which is used to create
+new fold projects and services. They will both guide you through a few set up
+options.
+
+The `up` command will then start your new service. You will have to change the
+path depending on the name you chose for your service in the setup. The below
+example assumes you called your service `new-service`
+
 ```
-foldctl init  # Fill in some project details at the prompts
-foldctl new basic js hello-service
-foldctl up hello-service/
+foldctl new project
+foldctl new service
+foldctl up new-service/
 ```
 
-This will set up a fold project and create a new service from the basic
-javascript template. Once the `up` command has run succesfully it will be
-available as an HTTP service on your machine. The command should give you
-some information about how to reach your new service and which routes have
-been registered:
+Once the `up` command has run succesfully it will be available as an HTTP 
+service on your machine. The command should give you some information about 
+how to reach your new service and which routes have been registered:
 
 ```
 Fold gateway is available at http://localhost:6123
 
-    hello-service is available at http://localhost:6123/hello-service
-    hello-service routes:
-        GET http://localhost:6123/hello-service/hello/:name
+    new-service is available at http://localhost:6123/service-name
+    new-service routes:
+        GET http://localhost:6123/new-service/hello/:name
 ```
 
-Note the `hello-service` in the URL. The gateway creates a path for every 
+Note the `new-service` in the URL. The gateway creates a path for every 
 service, based on its name, and you must include that in the URL to contact 
 the service you are interested in.
 
@@ -136,13 +133,13 @@ and you need to be able to identify the right one through the gateway. You can
 try this out by creating a new service and starting it:
 
 ```
-foldctl new basic js goodbye-service
-foldctl up goodbye-service/
+foldctl new service
+foldctl up second-service/
 ```
 
 The new service will be available on:
 
-`localhost:6123/goodbye-service`
+`localhost:6123/second-service`
 
 When you're done run `foldct down` from the project root to bring down the
 services.
@@ -152,13 +149,9 @@ services.
 ## Project Templates
 
 You can find example projects over in the [templates repository](https://github.com/foldsh/templates).
-These templates are also what `foldctl` uses to create new services. If you want
-to use the template located at github.com/foldsh/templates/basic/js, you can use
-the command:
-
-```
-foldct new basic js <service-name>
-```
+These templates are also what `foldctl` uses to create new services. The
+`foldctl new service` command will present you with options based on what is
+available there.
 
 Feel free to submit your own via a PR! The intention over time is to create a 
 repository of useful generic services which can be added to your project with a
@@ -192,12 +185,12 @@ maintainer: me
 name: fold-project
 repository: github.com/foo
 services:
-- name: hello-service
-  path: ./hello-service
+- name: user-service
+  path: ./user-service
   mounts:
   - ./app
-- name: goodbye-service
-  path: ./goodbye-service
+- name: score-service
+  path: ./score-service
   mounts:
   - ./app
 ```
