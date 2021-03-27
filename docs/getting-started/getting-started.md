@@ -43,6 +43,8 @@ To get started you will need to use the `new` command, which is used to create n
 The `up` command will then start your new service. You will have to change the path depending on the name you chose for your service in the setup. The below example assumes you called your service `new-service`
 
 ```text
+mkdir <project name>
+cd <project name>
 foldctl new project
 foldctl new service
 foldctl up new-service/
