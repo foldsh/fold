@@ -5,7 +5,7 @@
 syntax = "proto3";
 package ingress;
 
-option go_package = "github.com/foldsh/fold/runtime/supervisor/pb";
+option go_package = "github.com/foldsh/fold/runtime/subprocess/pb";
 
 import "http.proto";
 import "manifest.proto";

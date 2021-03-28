@@ -11,7 +11,7 @@ import (
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
-	"github.com/foldsh/fold/runtime/supervisor/pb"
+	"github.com/foldsh/fold/runtime/subprocess/pb"
 	"github.com/foldsh/fold/runtime/types"
 )
 

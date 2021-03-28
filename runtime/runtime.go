@@ -10,7 +10,7 @@ import (
 	"github.com/foldsh/fold/manifest"
 	"github.com/foldsh/fold/runtime/handler"
 	"github.com/foldsh/fold/runtime/router"
-	"github.com/foldsh/fold/runtime/supervisor"
+	"github.com/foldsh/fold/runtime/subprocess"
 	"github.com/foldsh/fold/runtime/watcher"
 )
 
