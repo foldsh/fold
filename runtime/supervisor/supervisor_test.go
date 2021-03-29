@@ -5,6 +5,7 @@ import (
 	"errors"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/runtime/supervisor"
@@ -16,6 +17,10 @@ func TestShouldStartAProcess(t *testing.T) {
 	if err := s.Start(); err != nil {
 		t.Errorf("%+v", err)
 	}
+	status := s.Status()
+	if status != supervisor.RUNNING {
+		t.Errorf("Expected RUNNING but found %v", status)
+	}
 	if err := s.Wait(); err != nil {
 		t.Errorf("%+v", err)
 	}
@@ -23,7 +28,7 @@ func TestShouldStartAProcess(t *testing.T) {
 	if actual != expectation {
 		t.Errorf("Expected %s but found %s", expectation, actual)
 	}
-	status := s.Status()
+	status = s.Status()
 	if status != supervisor.COMPLETE {
 		t.Errorf("Expected COMPLETE but found %v", status)
 	}
@@ -54,7 +59,21 @@ func TestShouldSetEnvCorrectly(t *testing.T) {
 }
 
 func TestShouldStopAProcessGracefully(t *testing.T) {
-
+	s, _, _ := makeProcess("sleep", []string{"999"}, nil)
+	if err := s.Start(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Stop(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	status := s.Status()
+	if status != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", status)
+	}
 }
 
 func TestShouldKillAProcess(t *testing.T) {
@@ -94,7 +113,35 @@ func TestShouldSignalAProcess(t *testing.T) {
 }
 
 func TestShouldRestartAProcess(t *testing.T) {
-
+	s, sout, _ := makeProcess(
+		"bash",
+		[]string{"./testdata/restart.sh"},
+		nil,
+	)
+	if err := s.Start(); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if err := s.Restart(); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if err := s.Stop(); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	actual := sout.String()
+	expectation := "FOLDFOLD"
+	if actual != expectation {
+		t.Errorf("Expected %s but found %s", expectation, actual)
+	}
+	status := s.Status()
+	if status != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", status)
+	}
 }
 
 func TestOnErrorShouldCaptureStderrAndUpdateStatus(t *testing.T) {

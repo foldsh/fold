@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/foldsh/fold/logging"
 )
@@ -60,6 +61,7 @@ func (s *Supervisor) Status() Status {
 }
 
 func (s *Supervisor) Start() error {
+	s.logger.Debugf("Starting the process")
 	command := exec.Command(s.Cmd, s.Args...)
 	s.command = command
 	command.Stdout = s.Sout
@@ -109,18 +111,28 @@ func (s *Supervisor) Start() error {
 }
 
 func (s *Supervisor) Restart() error {
-	return nil
+	s.logger.Debugf("Restarting the process")
+	if err := s.Stop(); err != nil {
+		return fmt.Errorf("failed to restart process: %v", err)
+	}
+	if err := s.Wait(); err != nil && !errors.Is(err, TerminatedBySignal) {
+		return fmt.Errorf("failed to restart process: %v", err)
+	}
+	return s.Start()
 }
 
 func (s *Supervisor) Stop() error {
-	return nil
+	s.logger.Debugf("Stopping the process")
+	return s.Signal(syscall.SIGTERM)
 }
 
 func (s *Supervisor) Kill() error {
+	s.logger.Debugf("Killing the process")
 	return s.command.Process.Kill()
 }
 
 func (s *Supervisor) Wait() error {
+	s.logger.Debugf("Waiting for the process to terminate")
 	err := <-s.Terminated
 	return err
 }
