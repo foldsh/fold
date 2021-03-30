@@ -35,10 +35,9 @@ func TestShouldStartAProcess(t *testing.T) {
 }
 
 func TestShouldSetEnvCorrectly(t *testing.T) {
-	cmd := "echo -n $ONE && echo -n $TWO"
 	s, sout, _ := makeProcess(
 		"bash",
-		[]string{"-c", cmd},
+		[]string{"./testdata/env.sh"},
 		map[string]string{"ONE": "ONE", "TWO": "TWO"},
 	)
 	if err := s.Start(); err != nil {
@@ -145,11 +144,42 @@ func TestShouldRestartAProcess(t *testing.T) {
 }
 
 func TestOnErrorShouldCaptureStderrAndUpdateStatus(t *testing.T) {
-
+	s, sout, serr := makeProcess(
+		"bash",
+		[]string{"./testdata/error.sh"},
+		nil,
+	)
+	if err := s.Start(); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	err := s.Wait()
+	var pe supervisor.ProcessError
+	if !errors.As(err, &pe) {
+		t.Errorf("Expected ProcessError but found %v", err)
+	}
+	outResult := sout.String()
+	if outResult != "" {
+		t.Errorf("Expected an empty string but found %s", outResult)
+	}
+	errResult := serr.String()
+	if errResult != "expr: division by zero\n" {
+		t.Errorf("Expected 'expr: division by zero' but found %s", errResult)
+	}
+	if s.Status() != supervisor.CRASHED {
+		t.Errorf("Expected CRASHED but found %v", s.Status())
+	}
 }
 
-func TestInvalidCommandShouldCaptureStderrAndUpdateStatus(t *testing.T) {
-
+func TestInvalidCommandShouldErrorAndUpdateStatus(t *testing.T) {
+	s, _, _ := makeProcess("not-a-command", []string{}, nil)
+	err := s.Start()
+	var pe supervisor.ProcessError
+	if !errors.As(err, &pe) {
+		t.Errorf("Expected ProcessError but found %v", err)
+	}
+	if s.Status() != supervisor.STARTFAILED {
+		t.Errorf("Expected STARTFAILED but found %v", s.Status())
+	}
 }
 
 func makeProcess(

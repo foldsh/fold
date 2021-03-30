@@ -11,10 +11,6 @@ import (
 	"github.com/foldsh/fold/logging"
 )
 
-var (
-	TerminatedBySignal = errors.New("process terminated by a signal")
-)
-
 type Status int
 
 const (
@@ -60,6 +56,23 @@ func (s *Supervisor) Status() Status {
 	return s.state
 }
 
+var (
+	TerminatedBySignal = errors.New("process terminated by a signal")
+)
+
+type ProcessError struct {
+	Reason string
+	Inner  error
+}
+
+func (e ProcessError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Reason, e.Inner.Error())
+}
+
+func (e ProcessError) Unwrap() error {
+	return e.Inner
+}
+
 func (s *Supervisor) Start() error {
 	s.logger.Debugf("Starting the process")
 	command := exec.Command(s.Cmd, s.Args...)
@@ -75,7 +88,8 @@ func (s *Supervisor) Start() error {
 	}
 	err := command.Start()
 	if err != nil {
-		return fmt.Errorf("process failed to start: %v", err)
+		s.state = STARTFAILED
+		return ProcessError{Reason: "process failed to start", Inner: err}
 	}
 	s.state = RUNNING
 	go func() {
@@ -90,7 +104,7 @@ func (s *Supervisor) Start() error {
 		if !errors.As(err, &exitErr) {
 			// Can this even happen given that we have used Start?
 			s.state = STARTFAILED
-			s.Terminated <- fmt.Errorf("process did not run successfully: %v", err)
+			s.Terminated <- ProcessError{Reason: "process did not run successfully", Inner: err}
 			return
 		}
 		// It's an exit error, so the process ran but stopped for some reason.
@@ -104,7 +118,7 @@ func (s *Supervisor) Start() error {
 		// The users program crashed, they have a bug.
 		s.logger.Debugf("The process ended unexpectedly %+v", err)
 		s.state = CRASHED
-		s.Terminated <- fmt.Errorf("process crashed: %v", err)
+		s.Terminated <- ProcessError{Reason: "process crashed", Inner: err}
 		return
 	}()
 	return nil
