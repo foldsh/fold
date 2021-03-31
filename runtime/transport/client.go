@@ -1,4 +1,4 @@
-package client
+package transport
 
 import (
 	"context"
@@ -42,7 +42,7 @@ func (ic *Ingress) Start() error {
 	// This takes around 2 to 4 ms usually, and the backoff config ensures
 	// that we return almost as soon as it's up. The default backoff
 	// config waits for a second, which is pointless for us.
-	ic.logger.Debugf("dialing server on %s", ic.foldSockAddr)
+	ic.logger.Debugf("Dialing server on %s", ic.foldSockAddr)
 	conn, err := grpc.Dial(
 		ic.foldSockAddr,
 		grpc.WithInsecure(),
@@ -64,6 +64,7 @@ func (ic *Ingress) Start() error {
 	}
 	ic.conn = conn
 	ic.client = pb.NewFoldIngressClient(conn)
+	ic.logger.Debugf("Connected")
 	return nil
 }
 

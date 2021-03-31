@@ -187,10 +187,8 @@ func makeProcess(
 	args []string,
 	env map[string]string,
 ) (*supervisor.Supervisor, *bytes.Buffer, *bytes.Buffer) {
-	s := supervisor.NewSupervisor(logging.NewTestLogger(), cmd, args, env)
 	sout := &bytes.Buffer{}
-	s.Sout = sout
 	serr := &bytes.Buffer{}
-	s.Serr = serr
+	s := supervisor.NewSupervisor(logging.NewTestLogger(), cmd, args, env, sout, serr)
 	return s, sout, serr
 }

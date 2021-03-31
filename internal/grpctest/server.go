@@ -3,57 +3,68 @@ package grpctest
 import (
 	"context"
 	"net"
+	"os"
+	"testing"
 
 	"google.golang.org/grpc"
 
+	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
+	"github.com/foldsh/fold/runtime/transport/pb"
 )
 
-type Ingress struct {
-	pb.UnimplementedFoldIngress
+type Server struct {
+	pb.UnimplementedFoldIngressServer
 	socket   string
 	server   *grpc.Server
 	manifest *manifest.Manifest
+	t        *testing.T
+	logger   logging.Logger
+
+	ManifestCalls  int
+	DoRequestCalls int
+	LastRequest    *manifest.FoldHTTPRequest
 }
 
-func NewIngress(foldSockAddr string) *Ingress {
-	restartCount += 1
+func NewServer(t *testing.T, logger logging.Logger, foldSockAddr string) *Server {
 	manifest := &manifest.Manifest{
-		Version: &manifest.Version{Major: int32(restartCount), Minor: 0, Patch: 0},
+		Version: &manifest.Version{Major: 1, Minor: 0, Patch: 0},
 	}
-	return &Ingress{socket: foldSockAddr, manifest: manifest}
+	return &Server{socket: foldSockAddr, manifest: manifest, t: t, logger: logger}
 }
 
-func (is *Ingress) Start() {
-	lis, err := net.Listen("unix", is.socket)
+func (s *Server) Start() {
+	lis, err := net.Listen("unix", s.socket)
 	if err != nil {
-		panic(err)
+		s.t.Fatalf("%+v")
 	}
-	is.server = grpc.NewServer()
-	pb.RegisterFoldIngress(is.server, is)
-	if err := is.server.Serve(lis); err != nil {
-		panic(err)
+	s.server = grpc.NewServer()
+	pb.RegisterFoldIngressServer(s.server, s)
+	if err := s.server.Serve(lis); err != nil {
+		s.t.Fatalf("%+v")
 	}
 }
 
-func (is *Ingress) Stop() {
-	is.server.Stop()
+func (s *Server) Stop() {
+	os.Remove(s.socket)
+	s.server.Stop()
 }
 
-func (is *Ingress) GetManifest(
+func (s *Server) GetManifest(
 	ctx context.Context,
 	in *pb.ManifestReq,
 ) (*manifest.Manifest, error) {
-	return is.manifest, nil
+	s.logger.Debugf("Handling GetManifest")
+	s.ManifestCalls++
+	return s.manifest, nil
 }
 
-func (is *Ingress) DoRequest(
+func (s *Server) DoRequest(
 	ctx context.Context,
 	in *manifest.FoldHTTPRequest,
 ) (*manifest.FoldHTTPResponse, error) {
+	s.logger.Debugf("Handling DoRequest")
+	s.DoRequestCalls++
+	s.LastRequest = in
 	return &manifest.FoldHTTPResponse{Status: 200, Body: in.Body, Headers: nil}, nil
-}
-
-func compareVersion(a *manifest.Version, b *manifest.Version) bool {
-	return a.Major == b.Major && a.Minor == b.Minor && a.Patch == b.Patch
 }

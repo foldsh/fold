@@ -61,6 +61,9 @@ genmocks:
 	mockgen -source=ctl/project/container_api.go \
 		-destination=ctl/project/mock_container_api_test.go \
 		-package project_test
+	mockgen -source=runtime/service.go \
+		-destination=runtime/service_mocks_test.go \
+		-package runtime_test
 
 bin:
 	mkdir -p bin

@@ -39,13 +39,15 @@ func NewSupervisor(
 	cmd string,
 	args []string,
 	env map[string]string,
+	sout io.Writer,
+	serr io.Writer,
 ) *Supervisor {
 	return &Supervisor{
 		Cmd:        cmd,
 		Args:       args,
 		Env:        env,
-		Sout:       os.Stdout,
-		Serr:       os.Stderr,
+		Sout:       sout,
+		Serr:       serr,
 		Terminated: make(chan error, 1),
 		logger:     logger,
 		state:      NOTSTARTED,
@@ -147,8 +149,7 @@ func (s *Supervisor) Kill() error {
 
 func (s *Supervisor) Wait() error {
 	s.logger.Debugf("Waiting for the process to terminate")
-	err := <-s.Terminated
-	return err
+	return <-s.Terminated
 }
 
 func (s *Supervisor) Signal(sig os.Signal) error {
