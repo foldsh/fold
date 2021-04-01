@@ -24,7 +24,6 @@ const (
 type Supervisor struct {
 	Cmd        string
 	Args       []string
-	Env        map[string]string
 	Sout       io.Writer
 	Serr       io.Writer
 	Terminated chan error
@@ -38,14 +37,12 @@ func NewSupervisor(
 	logger logging.Logger,
 	cmd string,
 	args []string,
-	env map[string]string,
 	sout io.Writer,
 	serr io.Writer,
 ) *Supervisor {
 	return &Supervisor{
 		Cmd:        cmd,
 		Args:       args,
-		Env:        env,
 		Sout:       sout,
 		Serr:       serr,
 		Terminated: make(chan error, 1),
@@ -75,14 +72,14 @@ func (e ProcessError) Unwrap() error {
 	return e.Inner
 }
 
-func (s *Supervisor) Start() error {
+func (s *Supervisor) Start(env map[string]string) error {
 	s.logger.Debugf("Starting the process")
 	command := exec.Command(s.Cmd, s.Args...)
 	s.command = command
 	command.Stdout = s.Sout
 	command.Stderr = s.Serr
 	command.Env = os.Environ()
-	for key, value := range s.Env {
+	for key, value := range env {
 		command.Env = append(
 			command.Env,
 			fmt.Sprintf("%s=%s", key, value),
@@ -126,7 +123,7 @@ func (s *Supervisor) Start() error {
 	return nil
 }
 
-func (s *Supervisor) Restart() error {
+func (s *Supervisor) Restart(env map[string]string) error {
 	s.logger.Debugf("Restarting the process")
 	if err := s.Stop(); err != nil {
 		return fmt.Errorf("failed to restart process: %v", err)
@@ -134,7 +131,7 @@ func (s *Supervisor) Restart() error {
 	if err := s.Wait(); err != nil && !errors.Is(err, TerminatedBySignal) {
 		return fmt.Errorf("failed to restart process: %v", err)
 	}
-	return s.Start()
+	return s.Start(env)
 }
 
 func (s *Supervisor) Stop() error {

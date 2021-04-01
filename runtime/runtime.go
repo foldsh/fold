@@ -14,6 +14,10 @@ import (
 	"github.com/foldsh/fold/runtime/watcher"
 )
 
+type Handler interface {
+	Serve()
+}
+
 var (
 	loggr logging.Logger
 	env   string
