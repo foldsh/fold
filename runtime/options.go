@@ -1,6 +1,6 @@
 package runtime
 
-type option func(*Service)
+type option func(*Runtime)
 
 type HandlerT int
 
@@ -10,11 +10,11 @@ const (
 )
 
 func Handler(handlerType HandlerT) option {
-	return func(s *Service) {}
+	return func(r *Runtime) {}
 }
 
 func HotReload(dirs ...string) option {
-	return func(s *Service) {}
+	return func(r *Runtime) {}
 }
 
 type RestartPolicyT int
@@ -25,9 +25,10 @@ const (
 )
 
 func RestartPolicy(restartPolicy RestartPolicyT) option {
-	return func(s *Service) {}
+	return func(r *Runtime) {
+	}
 }
 
 func LogLevel(level logging.LogLevel) {
-	return func(s *Service) {}
+	return func(r *Runtime) {}
 }

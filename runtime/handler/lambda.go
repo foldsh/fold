@@ -13,17 +13,13 @@ import (
 	"github.com/foldsh/fold/logging"
 )
 
-type HTTPRequestDoer interface {
-	DoRequest(http.ResponseWriter, *http.Request)
-}
-
-func NewLambda(logger logging.Logger, doer HTTPRequestDoer) *LambdaHandler {
-	return &LambdaHandler{logger, doer}
+func NewLambda(logger logging.Logger, handler http.Handler) *LambdaHandler {
+	return &LambdaHandler{logger, handler}
 }
 
 type LambdaHandler struct {
-	logger logging.Logger
-	doer   HTTPRequestDoer
+	logger  logging.Logger
+	handler http.Handler
 }
 
 func (lh *LambdaHandler) Handle(
@@ -56,7 +52,7 @@ func (lh *LambdaHandler) Handle(
 	req.Close = false
 	req.Host = e.Headers["Host"]
 	res := newResponseWriter()
-	lh.doer.DoRequest(res, req)
+	lh.handler.ServeHTTP(res, req)
 	return res.toAPIGatewayResponse(), nil
 }
 

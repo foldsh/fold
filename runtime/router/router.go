@@ -13,9 +13,6 @@ import (
 
 type Router interface {
 	http.Handler
-	// While this method signature is the same as ServeHTTP, it is
-	// intended to support a different use case altogether.
-	DoRequest(http.ResponseWriter, *http.Request)
 	Configure(*manifest.Manifest)
 }
 
@@ -40,11 +37,6 @@ type foldRouter struct {
 // This just implements the http.Handler interface
 func (fr *foldRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fr.router.ServeHTTP(w, r)
-}
-
-func (fr *foldRouter) DoRequest(w http.ResponseWriter, r *http.Request) {
-	handle, ps, _ := fr.router.Lookup(r.Method, r.URL.Path)
-	handle(w, r, ps)
 }
 
 func (fr *foldRouter) Configure(m *manifest.Manifest) {

@@ -74,17 +74,16 @@ type Runtime struct {
 	socketAddress string
 }
 
-type RuntimeEvent int
+type EventT int
 
 const (
-	Start RuntimeEvent = iota + 1
+	Start EventT = iota + 1
 	Stop
 	Crash
 	FileChange
-	Request
 )
 
-type EventHandler func() error
+type EventHandler func()
 
 type RuntimeOpts struct {
 	Cmd        string
@@ -93,7 +92,7 @@ type RuntimeOpts struct {
 	Supervisor Supervisor
 	Client     Client
 
-	handlers map[RuntimeEvent][]EventHandler
+	handlers map[EventT][]EventHandler
 }
 
 func NewRuntime(logger logging.Logger, opts RuntimeOpts) *Runtime {
@@ -103,11 +102,39 @@ func NewRuntime(logger logging.Logger, opts RuntimeOpts) *Runtime {
 		args:       opts.Args,
 		supervisor: opts.Supervisor,
 		client:     opts.Client,
+		handlers:   map[EventT]EventHandler{},
 	}
 }
 
 func (r *Runtime) Start() error {
+
+}
+
+func (r *Runtime) Configure() error {
+	r.logger.Debugf("Fetching manifest")
+	manifest, err := r.client.GetManifest()
+	if err != nil {
+		r.logger.Fatalf("failed to fetch manifest")
+	}
+	loggr.Debugf("router is %+v", routr)
+	routr.Configure(mnfst)
 }
 
 func (r *Runtime) Stop() error {
+
+}
+
+func (r *Runtime) DoRequest(http.ResponseWriter, *http.Request) {
+
+}
+
+func (r *Runtime) subscribe(event EventT, handler EventHandler) {
+	handlers = r.handlers[event]
+	r.handlers[event] = append(handlers, handler)
+}
+
+func (r *Runtime) publish(event EventT) {
+	for _, handler := range r.handlers[event] {
+		handler()
+	}
 }

@@ -16,7 +16,7 @@ import (
 // into http requests which can be handled by the regular routing stack.
 func TestLambdaHandler(t *testing.T) {
 	logger := logging.NewTestLogger()
-	doer := &mockHTTPDoer{t}
+	doer := &mockHTTPServer{t}
 	lambda := &LambdaHandler{logger, doer}
 
 	req := events.APIGatewayProxyRequest{
@@ -39,11 +39,11 @@ func TestLambdaHandler(t *testing.T) {
 	testutils.Diff(t, expectation, res, "Body did not match expectation")
 }
 
-type mockHTTPDoer struct {
+type mockHTTPServer struct {
 	t *testing.T
 }
 
-func (m *mockHTTPDoer) DoRequest(w http.ResponseWriter, r *http.Request) {
+func (m *mockHTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		m.t.Fatalf("failed to read body")
