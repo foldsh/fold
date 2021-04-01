@@ -13,6 +13,41 @@ import (
 	gomock "github.com/golang/mock/gomock"
 )
 
+// MockHandler is a mock of Handler interface.
+type MockHandler struct {
+	ctrl     *gomock.Controller
+	recorder *MockHandlerMockRecorder
+}
+
+// MockHandlerMockRecorder is the mock recorder for MockHandler.
+type MockHandlerMockRecorder struct {
+	mock *MockHandler
+}
+
+// NewMockHandler creates a new mock instance.
+func NewMockHandler(ctrl *gomock.Controller) *MockHandler {
+	mock := &MockHandler{ctrl: ctrl}
+	mock.recorder = &MockHandlerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockHandler) EXPECT() *MockHandlerMockRecorder {
+	return m.recorder
+}
+
+// Serve mocks base method.
+func (m *MockHandler) Serve() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Serve")
+}
+
+// Serve indicates an expected call of Serve.
+func (mr *MockHandlerMockRecorder) Serve() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Serve", reflect.TypeOf((*MockHandler)(nil).Serve))
+}
+
 // MockSupervisor is a mock of Supervisor interface.
 type MockSupervisor struct {
 	ctrl     *gomock.Controller

@@ -24,10 +24,6 @@ var (
 	hndlr Handler
 )
 
-type Handler interface {
-	Serve()
-}
-
 func Run(logger logging.Logger, env string, stage string, command string, args ...string) {
 	// TODO this is optimised for local development... it's a bit convoluted but
 	// it basically tries really hard to always be available. This is so that
