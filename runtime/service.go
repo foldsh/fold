@@ -232,7 +232,7 @@ func (r *Runtime) Stop() {
 	r.Trigger(START)
 }
 
-func (r *Runtime) DoRequest(http.ResponseWriter, *http.Request) {
+func (r *Runtime) ServeHTTP(http.ResponseWriter, *http.Request) {
 
 }
 
