@@ -75,7 +75,7 @@ func TestDoRequestInUPState(t *testing.T) {
 
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
-	rt.DoRequest(rw, req)
+	rt.ServeHTTP(rw, req)
 	// if res == nil {
 	// 	t.Errorf("In the UP state there should be a response")
 	// }
@@ -90,7 +90,7 @@ func TestDoRequestInDOWNState(t *testing.T) {
 
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
-	rt.DoRequest(rw, req)
+	rt.ServeHTTP(rw, req)
 	// TODO check that it is the default response
 	// if res == nil {
 	// 	t.Errorf("In the DOWN state there should be a response")
@@ -110,7 +110,7 @@ func TestDoRequestInEXITEDState(t *testing.T) {
 
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
-	rt.DoRequest(rw, req)
+	rt.ServeHTTP(rw, req)
 	// if res != nil {
 	// 	t.Errorf("There should be no response in the EXITED state%+v", err)
 	// }

@@ -5,14 +5,6 @@ import (
 	"sync"
 )
 
-/**
-We need to:
- - say which events are available in a given state
- - say which transitions are available
- - expose hooks to update state on the host struct on transitions
- - synchronise state changes
-*/
-
 type State string
 
 type Event string
@@ -34,6 +26,12 @@ type FSM struct {
 	transitionMap map[State]map[Event]Transition
 }
 
+// TODO in addition to this we need to provide a method for adding
+// extra transitions after the FSM has been created. This is so that
+// we can create the default FSM and then override transitions from
+// options.
+// If a transition is specified that matches the State/From of an existing
+// one it should just override it.
 func NewFSM(initialState State, transitions Transitions) *FSM {
 	fsm := &FSM{
 		state:      initialState,
@@ -82,9 +80,9 @@ func (fsm *FSM) Emit(event Event) error {
 			Event: event,
 		}
 	}
-	fsm.state = transition.To
 	for _, cb := range transition.Callbacks {
 		cb()
 	}
+	fsm.state = transition.To
 	return nil
 }

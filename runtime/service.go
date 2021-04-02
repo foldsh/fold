@@ -52,6 +52,7 @@ import (
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
+	"github.com/foldsh/fold/runtime/fsm"
 	"github.com/foldsh/fold/runtime/router"
 	"github.com/foldsh/fold/runtime/supervisor"
 	"github.com/foldsh/fold/runtime/transport"
@@ -85,7 +86,7 @@ type RouterFactory func(logger logging.Logger, doer router.RequestDoer) Router
 
 type Runtime struct {
 	logger logging.Logger
-	state  RuntimeState
+	fsm    *fsm.FSM
 	cmd    string
 	args   []string
 
@@ -97,27 +98,18 @@ type Runtime struct {
 
 	socketAddress string
 	router        Router
-	handlers      map[EventT][]EventHandler
 }
 
-type RuntimeState uint8
+var (
+	UP     fsm.State = "UP"
+	DOWN   fsm.State = "DOWN"
+	EXITED fsm.State = "EXITED"
 
-const (
-	DOWN RuntimeState = iota + 1
-	UP
-	EXITED
+	START       fsm.Event = "START"
+	STOP        fsm.Event = "STOP"
+	CRASH       fsm.Event = "CRASH"
+	FILE_CHANGE fsm.Event = "FILE_CHANGE"
 )
-
-type EventT uint8
-
-const (
-	START EventT = iota + 1
-	STOP
-	CRASH
-	FILE_CHANGE
-)
-
-type EventHandler func() error
 
 // This can probably be modelled pretty well as a state machine. Probably
 // don't want to bring in a library for it though.
@@ -153,7 +145,6 @@ func NewRuntime(
 ) *Runtime {
 	r := &Runtime{
 		logger: logger,
-		state:  DOWN,
 		cmd:    Cmd,
 		args:   Args,
 	}
@@ -164,33 +155,46 @@ func NewRuntime(
 	}
 
 	// Then we go through and set the defaults where they are needed.
+	// TODO move this to before the options and set up the default FSM in there.
 	setDefaultOptions(r)
 
-	// TODO ideally I would like to have one configuration system for the runtime.
-	// the default configuration would set up the 'basic' runtime workflow and
-	// then the options passed would lead to handlers being added.
-	handlers := map[EventT][]EventHandler{
-		START: []EventHandler{
-			func() error {
-				r.socketAddress = r.socketFactory()
-				env := map[string]string{"FOLD_SOCK_ADDR": r.socketAddress}
-				if err := r.supervisor.Start(env); err != nil {
-					return err
-				}
-				if err := r.client.Start(r.socketAddress); err != nil {
-					return err
-				}
-				r.setState(UP)
-				return nil
+	// Next we set up the FSM
+	f := fsm.NewFSM(
+		DOWN,
+		fsm.Transitions{
+			{START, DOWN, UP, []fsm.Callback{
+				func() {
+					// TODO how do we handle the errors? Need to add an error
+					// into the Callback type?
+					r.socketAddress = r.socketFactory()
+					env := map[string]string{"FOLD_SOCK_ADDR": r.socketAddress}
+					if err := r.supervisor.Start(env); err != nil {
+						return
+					}
+					if err := r.client.Start(r.socketAddress); err != nil {
+						return
+					}
+					return
+				}},
 			},
+			{STOP, DOWN, EXITED, nil},
+			{STOP, UP, EXITED, nil},
+			// TODO when the appropriate option is set we need to choose one of these two:
+			{CRASH, UP, EXITED, nil},
+			{CRASH, UP, DOWN, nil},
+			// TODO when the option is set, this needs to be registered
+			{FILE_CHANGE, UP, DOWN, []fsm.Callback{
+				func() {
+					// TODO this needs to reference the fsm so that it can
+					// emit the start event when it's done.
+					// f.Emit(START)
+					// We need to provide a way to build up an FSM in multiple
+					// method calls basically.
+				},
+			}},
 		},
-		STOP: []EventHandler{},
-		// TODO the default crash behaviour is just to log and exit
-		CRASH: []EventHandler{},
-		// TODO there is no default file change behaviour
-		FILE_CHANGE: []EventHandler{},
-	}
-	r.handlers = handlers
+	)
+	r.fsm = f
 	return r
 }
 
@@ -211,13 +215,8 @@ func setDefaultOptions(r *Runtime) {
 	}
 }
 
-func (r *Runtime) State() RuntimeState {
-	// TODO mutex
-	return r.state
-}
-
-func (r *Runtime) setState(state RuntimeState) {
-	r.state = state
+func (r *Runtime) State() fsm.State {
+	return r.fsm.State()
 }
 
 func (r *Runtime) Router() Router {
@@ -229,22 +228,15 @@ func (r *Runtime) Start() {
 }
 
 func (r *Runtime) Stop() {
-	r.Trigger(START)
+	r.Trigger(STOP)
 }
 
 func (r *Runtime) ServeHTTP(http.ResponseWriter, *http.Request) {
 
 }
 
-func (r *Runtime) Trigger(event EventT) {
-	for _, handler := range r.handlers[event] {
-		if err := handler(); err != nil {
-			// TODO we stop the execution flow if a handler fails.
-			// However we also want to clean up and 'reset' the runtime
-			// to the default state so that it goes back to default 500 responses.
-			break
-		}
-	}
+func (r *Runtime) Trigger(event fsm.Event) {
+	r.fsm.Emit(event)
 }
 
 func (r *Runtime) configure() error {
@@ -256,9 +248,4 @@ func (r *Runtime) configure() error {
 	}
 	r.router.Configure(manifest)
 	return nil
-}
-
-func (r *Runtime) subscribe(event EventT, handler EventHandler) {
-	handlers := r.handlers[event]
-	r.handlers[event] = append(handlers, handler)
 }
