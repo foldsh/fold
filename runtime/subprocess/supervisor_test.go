@@ -14,7 +14,7 @@ import (
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 	"github.com/foldsh/fold/runtime/subprocess/pb"
-	"github.com/foldsh/fold/runtime/types"
+	"github.com/foldsh/fold/runtime/transport"
 )
 
 var restartCount = 0
@@ -40,7 +40,7 @@ func TestSupervisorIntegration(t *testing.T) {
 		t.Fatalf("Exepcted manifest to have version %+v, but found %+v", expectation, m.Version)
 	}
 
-	req := &types.Request{
+	req := &transport.Request{
 		HTTPMethod: "GET",
 		Body:       []byte(`{"msg": "test_body"}`),
 		Route:      "/test",
@@ -80,7 +80,7 @@ func TestSupervisorShouldFunctionWithDeadProcessIntegration(t *testing.T) {
 	service := newTestSupervisor(t)
 	service.Start()
 	service.process.kill()
-	req := &types.Request{
+	req := &transport.Request{
 		HTTPMethod: "GET",
 		Body:       []byte(`{"msg": "test_body"}`),
 		Route:      "/test",

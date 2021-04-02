@@ -20,7 +20,7 @@ import (
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
-	"github.com/foldsh/fold/runtime/types"
+	"github.com/foldsh/fold/runtime/transport"
 )
 
 var (
@@ -115,7 +115,7 @@ func (s *Supervisor) Restart() error {
 	return nil
 }
 
-func (s *Supervisor) DoRequest(req *types.Request) (*types.Response, error) {
+func (s *Supervisor) DoRequest(req *transport.Request) (*transport.Response, error) {
 	s.logger.Debug("performing application request: ", req)
 	if s.process.healthz() {
 		return s.client.doRequest(context.Background(), req)
@@ -124,7 +124,7 @@ func (s *Supervisor) DoRequest(req *types.Request) (*types.Response, error) {
 		// the desired effect. Basically, the supervisor should remain responsive when
 		// the child process is unavailable. I.e., just because the subprocess is unhealthy,
 		// it doesn't mean the runtime is too.
-		res := &types.Response{Status: 502, Body: CannotServiceRequest}
+		res := &transport.Response{Status: 502, Body: CannotServiceRequest}
 		return res, nil
 	}
 }

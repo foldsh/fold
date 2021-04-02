@@ -11,7 +11,7 @@ import (
 	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
-	"github.com/foldsh/fold/runtime/types"
+	"github.com/foldsh/fold/runtime/transport"
 )
 
 const port = ":12345"
@@ -314,7 +314,7 @@ type mockRequestDoer struct {
 	t *testing.T
 }
 
-func (ms *mockRequestDoer) DoRequest(req *types.Request) (*types.Response, error) {
+func (ms *mockRequestDoer) DoRequest(req *transport.Request) (*transport.Response, error) {
 	// First up we'll run some generic assertions about the request being
 	// formed.
 	if req.Proto != "HTTP/1.1" {
@@ -351,7 +351,7 @@ func (ms *mockRequestDoer) DoRequest(req *types.Request) (*types.Response, error
 			body[key] = value
 		}
 	}
-	return &types.Response{Status: 200, Body: testutils.MarshalJSON(ms.t, body)}, nil
+	return &transport.Response{Status: 200, Body: testutils.MarshalJSON(ms.t, body)}, nil
 }
 
 func mkmanifest(routes ...*manifest.Route) *manifest.Manifest {

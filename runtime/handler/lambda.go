@@ -51,7 +51,7 @@ func (lh *LambdaHandler) Handle(
 	req.ContentLength = int64(len(e.Body))
 	req.Close = false
 	req.Host = e.Headers["Host"]
-	res := newResponseWriter()
+	res := NewResponseWriter()
 	lh.handler.ServeHTTP(res, req)
 	return res.toAPIGatewayResponse(), nil
 }
@@ -60,17 +60,17 @@ func (lh *LambdaHandler) Serve() {
 	lambda.Start(lh.Handle)
 }
 
-type responseWriter struct {
+type ResponseWriter struct {
 	statusCode int
 	headers    http.Header
 	body       []byte
 }
 
-func newResponseWriter() *responseWriter {
-	return &responseWriter{headers: make(map[string][]string)}
+func NewResponseWriter() *ResponseWriter {
+	return &ResponseWriter{headers: make(map[string][]string)}
 }
 
-func (rw *responseWriter) toAPIGatewayResponse() events.APIGatewayProxyResponse {
+func (rw *ResponseWriter) toAPIGatewayResponse() events.APIGatewayProxyResponse {
 	return events.APIGatewayProxyResponse{
 		StatusCode:        rw.statusCode,
 		MultiValueHeaders: rw.headers,
@@ -78,16 +78,16 @@ func (rw *responseWriter) toAPIGatewayResponse() events.APIGatewayProxyResponse 
 	}
 }
 
-func (rw *responseWriter) Header() http.Header {
+func (rw *ResponseWriter) Header() http.Header {
 	return rw.headers
 }
 
-func (rw *responseWriter) Write(b []byte) (int, error) {
+func (rw *ResponseWriter) Write(b []byte) (int, error) {
 	// TODO this isn't perfect really, and is coupled with what the router is doing.
 	rw.body = b
 	return len(b), nil
 }
 
-func (rw *responseWriter) WriteHeader(statusCode int) {
+func (rw *ResponseWriter) WriteHeader(statusCode int) {
 	rw.statusCode = statusCode
 }

@@ -1,34 +1,55 @@
 package runtime
 
-type option func(*Runtime)
+import "github.com/foldsh/fold/logging"
 
-type HandlerT int
+type Option func(*Runtime)
 
-const (
-	HTTP HandlerT = iota + 1
-	Lambda
-)
+type HandlerT uint8
 
-func Handler(handlerType HandlerT) option {
+func WithEnv(env map[string]string) Option {
 	return func(r *Runtime) {}
 }
 
-func HotReload(dirs ...string) option {
+func WithSupervisor(supervisor Supervisor) Option {
+	return func(r *Runtime) {
+		r.supervisor = supervisor
+	}
+}
+
+func WithClient(client Client) Option {
+	return func(r *Runtime) {
+		r.client = client
+	}
+}
+
+func WithSocketFactory(socketFactory SocketFactory) Option {
+	return func(r *Runtime) {
+		r.socketFactory = socketFactory
+	}
+}
+
+func WithRouterFactory(routerFactory RouterFactory) Option {
+	return func(r *Runtime) {
+		r.routerFactory = routerFactory
+	}
+}
+
+func WatchDirs(dirs ...string) Option {
 	return func(r *Runtime) {}
 }
 
-type RestartPolicyT int
+type CrashPolicyT uint8
 
 const (
-	Forever RestartPolicyT = iota + 1
-	Never
+	EXIT CrashPolicyT = iota + 1
+	KEEP_ALIVE
 )
 
-func RestartPolicy(restartPolicy RestartPolicyT) option {
+func CrashPolicy(crashPolicy CrashPolicyT) Option {
 	return func(r *Runtime) {
 	}
 }
 
-func LogLevel(level logging.LogLevel) {
+func LogLevel(level logging.LogLevel) Option {
 	return func(r *Runtime) {}
 }

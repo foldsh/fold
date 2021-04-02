@@ -8,26 +8,21 @@ import (
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
-	"github.com/foldsh/fold/runtime/types"
+	"github.com/foldsh/fold/runtime/transport"
 )
 
-type Router interface {
-	http.Handler
-	Configure(*manifest.Manifest)
-}
-
 type RequestDoer interface {
-	DoRequest(*types.Request) (*types.Response, error)
+	DoRequest(*transport.Request) (*transport.Response, error)
 }
 
 // Builds a router from a service manifest. While we could fetch the manfiest
 // from the service, making it a parameter gives some more options about
 // how and when we acquire one.
-func NewRouter(logger logging.Logger, doer RequestDoer) Router {
-	return &foldRouter{logger: logger, doer: doer, router: newRouter()}
+func NewRouter(logger logging.Logger, doer RequestDoer) *Router {
+	return &Router{logger: logger, doer: doer, router: newRouter()}
 }
 
-type foldRouter struct {
+type Router struct {
 	logger   logging.Logger
 	doer     RequestDoer
 	router   *httprouter.Router
@@ -35,11 +30,11 @@ type foldRouter struct {
 }
 
 // This just implements the http.Handler interface
-func (fr *foldRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (fr *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fr.router.ServeHTTP(w, r)
 }
 
-func (fr *foldRouter) Configure(m *manifest.Manifest) {
+func (fr *Router) Configure(m *manifest.Manifest) {
 	fr.manifest = m
 	router := newRouter()
 	// Register the default admin routes.
@@ -82,7 +77,7 @@ func newRouter() *httprouter.Router {
 	return router
 }
 
-func (fr *foldRouter) makeHandler(route *manifest.Route) httprouter.Handle {
+func (fr *Router) makeHandler(route *manifest.Route) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		if r.Method == "PUT" || r.Method == "POST" {
 			isJSON := false
@@ -97,7 +92,7 @@ func (fr *foldRouter) makeHandler(route *manifest.Route) httprouter.Handle {
 				return
 			}
 		}
-		req := types.ReqFromHTTP(r, route.Route, encodePathParams(ps))
+		req := transport.ReqFromHTTP(r, route.Route, encodePathParams(ps))
 		res, err := fr.doer.DoRequest(req)
 		if err != nil {
 			httpError(w, 500, fmt.Sprintf(`{"title": "Runtime error", "detail": "%v"}`, err))

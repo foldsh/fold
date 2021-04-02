@@ -47,15 +47,19 @@ package runtime
 
 import (
 	"context"
+	"net/http"
 	"os"
 
 	"github.com/foldsh/fold/logging"
-	"github.com/foldsh/fold/runtime/types"
+	"github.com/foldsh/fold/manifest"
+	"github.com/foldsh/fold/runtime/router"
+	"github.com/foldsh/fold/runtime/supervisor"
+	"github.com/foldsh/fold/runtime/transport"
 )
 
 type Supervisor interface {
-	Start() error
-	Restart() error
+	Start(env map[string]string) error
+	Restart(env map[string]string) error
 	Stop() error
 	Kill() error
 	Wait() error
@@ -63,34 +67,48 @@ type Supervisor interface {
 }
 
 type Client interface {
-	Start() error
-	GetManifest(ctx context.Context) error
-	DoRequest(ctx context.Context, req *types.Request) (*types.Response, error)
+	Start(string) error
+	Stop() error
+	Restart(string) error
+	GetManifest(context.Context) (*manifest.Manifest, error)
+	DoRequest(context.Context, *transport.Request) (*transport.Response, error)
 }
 
-type ClientFactory func(socketAddress string) Client
+type Router interface {
+	http.Handler
+	Configure(*manifest.Manifest)
+}
+
+type SocketFactory func() string
+
+type RouterFactory func(logger logging.Logger, doer router.RequestDoer) Router
 
 type Runtime struct {
-	State RuntimeState
+	logger logging.Logger
+	state  RuntimeState
+	cmd    string
+	args   []string
 
-	logger        logging.Logger
-	cmd           string
-	args          []string
 	env           map[string]string
 	supervisor    Supervisor
-	clientFactory ClientFactory
+	client        Client
+	socketFactory SocketFactory
+	routerFactory RouterFactory
 
 	socketAddress string
+	router        Router
+	handlers      map[EventT][]EventHandler
 }
 
-type RuntimeState int
+type RuntimeState uint8
 
 const (
 	DOWN RuntimeState = iota + 1
 	UP
+	EXITED
 )
 
-type EventT int
+type EventT uint8
 
 const (
 	START EventT = iota + 1
@@ -100,18 +118,6 @@ const (
 )
 
 type EventHandler func() error
-
-type RuntimeOpts struct {
-	Cmd           string
-	Args          []string
-	Env           map[string]string
-	Supervisor    Supervisor
-	ClientFactory ClientFactory
-
-	handlers      map[EventT][]EventHandler
-	socketAddress string
-	client        Client
-}
 
 // This can probably be modelled pretty well as a state machine. Probably
 // don't want to bring in a library for it though.
@@ -139,15 +145,26 @@ type RuntimeOpts struct {
 // through the appropriate option. The handler for it simply emits a
 // a START event. This will have the effect of restarting if that is
 // how the runtime is configured, or just starting if it is currently DOWN.
-func NewRuntime(logger logging.Logger, opts RuntimeOpts) *Runtime {
+func NewRuntime(
+	logger logging.Logger,
+	Cmd string,
+	Args []string,
+	options ...Option,
+) *Runtime {
 	r := &Runtime{
-		State:         DOWN,
-		logger:        logger,
-		cmd:           opts.Cmd,
-		args:          opts.Args,
-		supervisor:    opts.Supervisor,
-		clientFactory: opts.ClientFactory,
+		logger: logger,
+		state:  DOWN,
+		cmd:    Cmd,
+		args:   Args,
 	}
+
+	// First up we go through the options specified by the caller and apply all of them
+	for _, option := range options {
+		option(r)
+	}
+
+	// Then we go through and set the defaults where they are needed.
+	setDefaultOptions(r)
 
 	// TODO ideally I would like to have one configuration system for the runtime.
 	// the default configuration would set up the 'basic' runtime workflow and
@@ -155,60 +172,71 @@ func NewRuntime(logger logging.Logger, opts RuntimeOpts) *Runtime {
 	handlers := map[EventT][]EventHandler{
 		START: []EventHandler{
 			func() error {
-				rt.socketAddress = newAddr()
-				env := map[string]string{"FOLD_SOCK_ADDR": rt.socketAddress}
-				if err := rt.Supervisor.Start(env); err != nil {
+				r.socketAddress = r.socketFactory()
+				env := map[string]string{"FOLD_SOCK_ADDR": r.socketAddress}
+				if err := r.supervisor.Start(env); err != nil {
 					return err
 				}
-				rt.client = rt.ClientFactory(rt.socketAddress)
-				if err := rt.client.Start(); err != nil {
+				if err := r.client.Start(r.socketAddress); err != nil {
 					return err
 				}
+				r.setState(UP)
 				return nil
 			},
 		},
-		STOP: []EventHandler{
-			func() error {
-				// TODO kill process and wait for finish.
-				// TODO exit
-			},
-		},
+		STOP: []EventHandler{},
 		// TODO the default crash behaviour is just to log and exit
 		CRASH: []EventHandler{},
 		// TODO there is no default file change behaviour
 		FILE_CHANGE: []EventHandler{},
 	}
 	r.handlers = handlers
+	return r
 }
 
-func (r *Runtime) Start() error {
-	r.publish(START)
-}
-
-func (r *Runtime) Configure() error {
-	r.logger.Debugf("Fetching manifest")
-	manifest, err := r.client.GetManifest()
-	if err != nil {
-		r.logger.Fatalf("failed to fetch manifest")
+func setDefaultOptions(r *Runtime) {
+	if r.supervisor == nil {
+		r.supervisor = supervisor.NewSupervisor(r.logger, r.cmd, r.args, os.Stdout, os.Stdout)
 	}
-	loggr.Debugf("router is %+v", routr)
-	routr.Configure(mnfst)
+	if r.client == nil {
+		r.client = transport.NewIngress(r.logger)
+	}
+	if r.socketFactory == nil {
+		r.socketFactory = newAddr
+	}
+	if r.routerFactory == nil {
+		r.routerFactory = func(l logging.Logger, d router.RequestDoer) Router {
+			return router.NewRouter(l, d)
+		}
+	}
 }
 
-func (r *Runtime) Stop() error {
+func (r *Runtime) State() RuntimeState {
+	// TODO mutex
+	return r.state
+}
 
+func (r *Runtime) setState(state RuntimeState) {
+	r.state = state
+}
+
+func (r *Runtime) Router() Router {
+	return r.router
+}
+
+func (r *Runtime) Start() {
+	r.Trigger(START)
+}
+
+func (r *Runtime) Stop() {
+	r.Trigger(START)
 }
 
 func (r *Runtime) DoRequest(http.ResponseWriter, *http.Request) {
 
 }
 
-func (r *Runtime) subscribe(event EventT, handler EventHandler) {
-	handlers = r.handlers[event]
-	r.handlers[event] = append(handlers, handler)
-}
-
-func (r *Runtime) publish(event EventT) {
+func (r *Runtime) Trigger(event EventT) {
 	for _, handler := range r.handlers[event] {
 		if err := handler(); err != nil {
 			// TODO we stop the execution flow if a handler fails.
@@ -217,4 +245,20 @@ func (r *Runtime) publish(event EventT) {
 			break
 		}
 	}
+}
+
+func (r *Runtime) configure() error {
+	r.logger.Debugf("Fetching manifest")
+	// TODO context
+	manifest, err := r.client.GetManifest(context.Background())
+	if err != nil {
+		r.logger.Fatalf("failed to fetch manifest")
+	}
+	r.router.Configure(manifest)
+	return nil
+}
+
+func (r *Runtime) subscribe(event EventT, handler EventHandler) {
+	handlers := r.handlers[event]
+	r.handlers[event] = append(handlers, handler)
 }

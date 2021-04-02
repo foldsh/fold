@@ -12,7 +12,7 @@ import (
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
 	"github.com/foldsh/fold/runtime/subprocess/pb"
-	"github.com/foldsh/fold/runtime/types"
+	"github.com/foldsh/fold/runtime/transport"
 )
 
 // ingressClient wraps the gRPC client to communicate with the service.
@@ -75,12 +75,12 @@ func (ic *ingressClient) getManifest(ctx context.Context) (*manifest.Manifest, e
 // Submit a request to the service for processing.
 func (ic *ingressClient) doRequest(
 	ctx context.Context,
-	in *types.Request,
-) (*types.Response, error) {
+	in *transport.Request,
+) (*transport.Response, error) {
 	encoded, err := in.ToProto()
 	if err != nil {
 		return nil, err
 	}
 	res, err := ic.client.DoRequest(ctx, encoded)
-	return types.ResFromProto(res), err
+	return transport.ResFromProto(res), err
 }

@@ -6,47 +6,14 @@ package runtime_test
 
 import (
 	context "context"
+	http "net/http"
 	os "os"
 	reflect "reflect"
 
-	types "github.com/foldsh/fold/runtime/types"
+	manifest "github.com/foldsh/fold/manifest"
+	transport "github.com/foldsh/fold/runtime/transport"
 	gomock "github.com/golang/mock/gomock"
 )
-
-// MockHandler is a mock of Handler interface.
-type MockHandler struct {
-	ctrl     *gomock.Controller
-	recorder *MockHandlerMockRecorder
-}
-
-// MockHandlerMockRecorder is the mock recorder for MockHandler.
-type MockHandlerMockRecorder struct {
-	mock *MockHandler
-}
-
-// NewMockHandler creates a new mock instance.
-func NewMockHandler(ctrl *gomock.Controller) *MockHandler {
-	mock := &MockHandler{ctrl: ctrl}
-	mock.recorder = &MockHandlerMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockHandler) EXPECT() *MockHandlerMockRecorder {
-	return m.recorder
-}
-
-// Serve mocks base method.
-func (m *MockHandler) Serve() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Serve")
-}
-
-// Serve indicates an expected call of Serve.
-func (mr *MockHandlerMockRecorder) Serve() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Serve", reflect.TypeOf((*MockHandler)(nil).Serve))
-}
 
 // MockSupervisor is a mock of Supervisor interface.
 type MockSupervisor struct {
@@ -86,17 +53,17 @@ func (mr *MockSupervisorMockRecorder) Kill() *gomock.Call {
 }
 
 // Restart mocks base method.
-func (m *MockSupervisor) Restart() error {
+func (m *MockSupervisor) Restart(env map[string]string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Restart")
+	ret := m.ctrl.Call(m, "Restart", env)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Restart indicates an expected call of Restart.
-func (mr *MockSupervisorMockRecorder) Restart() *gomock.Call {
+func (mr *MockSupervisorMockRecorder) Restart(env interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockSupervisor)(nil).Restart))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockSupervisor)(nil).Restart), env)
 }
 
 // Signal mocks base method.
@@ -114,17 +81,17 @@ func (mr *MockSupervisorMockRecorder) Signal(sig interface{}) *gomock.Call {
 }
 
 // Start mocks base method.
-func (m *MockSupervisor) Start() error {
+func (m *MockSupervisor) Start(env map[string]string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start")
+	ret := m.ctrl.Call(m, "Start", env)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockSupervisorMockRecorder) Start() *gomock.Call {
+func (mr *MockSupervisorMockRecorder) Start(env interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockSupervisor)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockSupervisor)(nil).Start), env)
 }
 
 // Stop mocks base method.
@@ -179,44 +146,120 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // DoRequest mocks base method.
-func (m *MockClient) DoRequest(ctx context.Context, req *types.Request) (*types.Response, error) {
+func (m *MockClient) DoRequest(arg0 context.Context, arg1 *transport.Request) (*transport.Response, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DoRequest", ctx, req)
-	ret0, _ := ret[0].(*types.Response)
+	ret := m.ctrl.Call(m, "DoRequest", arg0, arg1)
+	ret0, _ := ret[0].(*transport.Response)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DoRequest indicates an expected call of DoRequest.
-func (mr *MockClientMockRecorder) DoRequest(ctx, req interface{}) *gomock.Call {
+func (mr *MockClientMockRecorder) DoRequest(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoRequest", reflect.TypeOf((*MockClient)(nil).DoRequest), ctx, req)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DoRequest", reflect.TypeOf((*MockClient)(nil).DoRequest), arg0, arg1)
 }
 
 // GetManifest mocks base method.
-func (m *MockClient) GetManifest(ctx context.Context) error {
+func (m *MockClient) GetManifest(arg0 context.Context) (*manifest.Manifest, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetManifest", ctx)
+	ret := m.ctrl.Call(m, "GetManifest", arg0)
+	ret0, _ := ret[0].(*manifest.Manifest)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetManifest indicates an expected call of GetManifest.
+func (mr *MockClientMockRecorder) GetManifest(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetManifest", reflect.TypeOf((*MockClient)(nil).GetManifest), arg0)
+}
+
+// Restart mocks base method.
+func (m *MockClient) Restart(arg0 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Restart", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// GetManifest indicates an expected call of GetManifest.
-func (mr *MockClientMockRecorder) GetManifest(ctx interface{}) *gomock.Call {
+// Restart indicates an expected call of Restart.
+func (mr *MockClientMockRecorder) Restart(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetManifest", reflect.TypeOf((*MockClient)(nil).GetManifest), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Restart", reflect.TypeOf((*MockClient)(nil).Restart), arg0)
 }
 
 // Start mocks base method.
-func (m *MockClient) Start() error {
+func (m *MockClient) Start(arg0 string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Start")
+	ret := m.ctrl.Call(m, "Start", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Start indicates an expected call of Start.
-func (mr *MockClientMockRecorder) Start() *gomock.Call {
+func (mr *MockClientMockRecorder) Start(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockClient)(nil).Start))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Start", reflect.TypeOf((*MockClient)(nil).Start), arg0)
+}
+
+// Stop mocks base method.
+func (m *MockClient) Stop() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Stop")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Stop indicates an expected call of Stop.
+func (mr *MockClientMockRecorder) Stop() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Stop", reflect.TypeOf((*MockClient)(nil).Stop))
+}
+
+// MockRouter is a mock of Router interface.
+type MockRouter struct {
+	ctrl     *gomock.Controller
+	recorder *MockRouterMockRecorder
+}
+
+// MockRouterMockRecorder is the mock recorder for MockRouter.
+type MockRouterMockRecorder struct {
+	mock *MockRouter
+}
+
+// NewMockRouter creates a new mock instance.
+func NewMockRouter(ctrl *gomock.Controller) *MockRouter {
+	mock := &MockRouter{ctrl: ctrl}
+	mock.recorder = &MockRouterMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockRouter) EXPECT() *MockRouterMockRecorder {
+	return m.recorder
+}
+
+// Configure mocks base method.
+func (m *MockRouter) Configure(arg0 *manifest.Manifest) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Configure", arg0)
+}
+
+// Configure indicates an expected call of Configure.
+func (mr *MockRouterMockRecorder) Configure(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Configure", reflect.TypeOf((*MockRouter)(nil).Configure), arg0)
+}
+
+// ServeHTTP mocks base method.
+func (m *MockRouter) ServeHTTP(arg0 http.ResponseWriter, arg1 *http.Request) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "ServeHTTP", arg0, arg1)
+}
+
+// ServeHTTP indicates an expected call of ServeHTTP.
+func (mr *MockRouterMockRecorder) ServeHTTP(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServeHTTP", reflect.TypeOf((*MockRouter)(nil).ServeHTTP), arg0, arg1)
 }
