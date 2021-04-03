@@ -97,7 +97,6 @@ type Runtime struct {
 	socketFactory SocketFactory
 	routerFactory RouterFactory
 	defaultRouter Router
-	signals       chan os.Signal
 	onProcessEnd  func()
 
 	// These are set dynamically with restarts etc
@@ -148,44 +147,49 @@ func NewRuntime(
 	Args []string,
 	options ...Option,
 ) *Runtime {
-	r := &Runtime{
+	newRuntime := &Runtime{
 		logger: logger,
 		cmd:    Cmd,
 		args:   Args,
 	}
 
-	// First we set up all of the default options. This corresponds to a minimal deployed setting.
-	setDefaultOptions(r)
+	// First up we configure the default FSM. Other options can change it later on.
+	configureFSM(newRuntime)
+
+	// The default options are handled the same way as user defined options. Options are applied
+	// in order so the defaults just get overriden by the user defined ones.
+	defaultOptions := []Option{
+		WithSupervisor(
+			supervisor.NewSupervisor(
+				newRuntime.logger,
+				newRuntime.cmd,
+				newRuntime.args,
+				os.Stdout,
+				os.Stdout,
+			),
+		),
+		WithClient(transport.NewIngress(newRuntime.logger)),
+		WithSocketFactory(newAddr),
+		WithRouterFactory(func(l logging.Logger, d router.RequestDoer) Router {
+			return router.NewRouter(l, d)
+		}),
+		WithDefaultRouter(router.NewCatchAllRouter(newRuntime.logger, &defaultRequestDoer{})),
+		// For now, regardless of the reason for termination, we handle process termination using
+		// a CRASH event. This is because we currently only support long lived processes like
+		// servers which are terminated from the outside. When we support batch jobs this will
+		// change.
+		OnProcessEnd(func() { newRuntime.Emit(CRASH) }),
+	}
 
 	// Then we go through the options specified by the caller and apply all of them
-	for _, option := range options {
-		option(r)
+	for _, option := range append(defaultOptions, options...) {
+		option(newRuntime)
 	}
 
-	return r
+	return newRuntime
 }
 
-func setDefaultOptions(r *Runtime) {
-	// First we set the default values of the major dependencies.
-	r.supervisor = supervisor.NewSupervisor(r.logger, r.cmd, r.args, os.Stdout, os.Stdout)
-	r.client = transport.NewIngress(r.logger)
-	r.socketFactory = newAddr
-	r.routerFactory = func(l logging.Logger, d router.RequestDoer) Router {
-		return router.NewRouter(l, d)
-	}
-	// Set up the defautl router and set the main router property to point to it.
-	r.defaultRouter = router.NewCatchAllRouter(r.logger, &defaultRequestDoer{})
-	r.router = r.defaultRouter
-	// Set the default signal channel
-	r.signals = make(chan os.Signal)
-	// Set the default onProcessEnd handler
-	// For now, regardless of the reason for termination, we handle process termination using
-	// a CRASH event. This is because we currently only support long lived processes like
-	// servers which are terminated from the outside. When we support batch jobs this will
-	// change.
-	r.onProcessEnd = func() { r.Emit(CRASH) }
-
-	// Next we set up and configure the default FSM.
+func configureFSM(r *Runtime) {
 	f := fsm.NewFSM(
 		r.logger,
 		DOWN,
