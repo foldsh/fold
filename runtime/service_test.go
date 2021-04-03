@@ -3,9 +3,12 @@ package runtime_test
 import (
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	gomock "github.com/golang/mock/gomock"
 
@@ -17,151 +20,270 @@ import (
 
 var SOCKET = "/tmp/test.runtime.sock"
 
-func TestStart(t *testing.T) {
+func TestStartFromDOWNState(t *testing.T) {
 	// Starting the runtime should start the supervisor and then the client.
 	// The router should then configure itself by calling GetManifest
-	rt, s, c := makeRuntime(t)
-	startRuntime(rt, s, c)
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
+	ctx.expectRuntimeStartTrace()
+	ctx.runtime.Start()
 
-	if rt.State() != runtime.UP {
+	if ctx.runtime.State() != runtime.UP {
 		t.Errorf(
 			"After succesfully starting the runtime should be in the UP state, but found %v",
-			rt.State(),
+			ctx.runtime.State(),
 		)
 	}
 }
 
-func TestStop(t *testing.T) {
-	rt, s, c := makeRuntime(t)
-	s.EXPECT().Stop()
-	c.EXPECT().Stop()
-	rt.Stop()
+func TestStartFromUPState(t *testing.T) {
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
+	ctx.expectRuntimeStartTrace()
+	ctx.runtime.Start()
 
-	if rt.State() != runtime.EXITED {
+	// Ok, the runtime is UP so lets issue a second 'START'. This is expected to have the effect
+	// of a restart.
+	ctx.expectRuntimeStopTrace()
+	ctx.expectRuntimeStartTrace()
+	ctx.runtime.Start()
+
+	if ctx.runtime.State() != runtime.UP {
+		t.Errorf(
+			"After succesfully starting the runtime should be in the UP state, but found %v",
+			ctx.runtime.State(),
+		)
+	}
+}
+
+func TestOnProcessEndCallback(t *testing.T) {
+	var ended bool
+	ctx := makeRuntime(t, runtime.OnProcessEnd(func() { ended = true }))
+	defer ctx.Finish()
+	ctx.expectRuntimeStartTrace()
+	ctx.runtime.Start()
+
+	// The callback is asynchronous so we need to sleep to let it run.
+	time.Sleep(10 * time.Millisecond)
+	if ended != true {
+		t.Errorf("Expected OnProcessEnd callback to be called but it wasn't")
+	}
+}
+
+func TestStopFromDOWNState(t *testing.T) {
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
+	ctx.runtime.Stop()
+
+	if ctx.runtime.State() != runtime.EXITED {
 		t.Errorf(
 			"After stopping the runtime should be in the EXITED state, but found %v",
-			rt.State(),
+			ctx.runtime.State(),
 		)
 	}
 }
 
-func TestExitOnCrash(t *testing.T) {
-	// The default behaviour is to
-	rt, _, _ := makeRuntime(t)
-	rt.Trigger(runtime.CRASH)
+func TestStopFromUPState(t *testing.T) {
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
+	ctx.expectRuntimeStartTrace()
+	ctx.expectRuntimeStopTrace()
+	ctx.runtime.Start()
+	ctx.runtime.Stop()
 
-	if rt.State() != runtime.EXITED {
-		t.Errorf("Expect the runtime to transition to the EXITED state, but found %v", rt.State())
+	if ctx.runtime.State() != runtime.EXITED {
+		t.Errorf(
+			"After stopping the runtime should be in the EXITED state, but found %v",
+			ctx.runtime.State(),
+		)
+	}
+}
+
+// TODO for both of these crash tests, what methods should be called? We should ensure both the
+// client and supervisor are down and ready to start again.
+func TestExitOnCrash(t *testing.T) {
+	// The default behaviour is simply to exit on a crash.
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
+	ctx.expectRuntimeStartTrace()
+	ctx.runtime.Start()
+	ctx.runtime.Emit(runtime.CRASH)
+
+	if ctx.runtime.State() != runtime.EXITED {
+		t.Errorf(
+			"Expect the runtime to transition to the EXITED state, but found %v",
+			ctx.runtime.State(),
+		)
 	}
 }
 
 func TestKeepAliveOnCrash(t *testing.T) {
-	// Triggering a crash should result in the crash handler being called.
-	rt, _, _ := makeRuntime(t, runtime.CrashPolicy(runtime.KEEP_ALIVE))
-	rt.Trigger(runtime.CRASH)
+	// When we set the KEEP_ALIVE crash policy then a crash should transition us to the down
+	// state instead.
+	ctx := makeRuntime(t, runtime.CrashPolicy(runtime.KEEP_ALIVE))
+	defer ctx.Finish()
+	ctx.expectRuntimeStartTrace()
+	ctx.runtime.Start()
+	ctx.runtime.Emit(runtime.CRASH)
 
-	// TODO what methods should be called? We should ensure both the client and supervisor are
-	// down and ready to start again.
-
-	if rt.State() != runtime.DOWN {
-		t.Errorf("Expecte the runtime to transition to the DOWN state, but found %v", rt.State())
+	if ctx.runtime.State() != runtime.DOWN {
+		t.Errorf(
+			"Expecte the runtime to transition to the DOWN state, but found %v",
+			ctx.runtime.State(),
+		)
 	}
 }
 
 func TestDoRequestInUPState(t *testing.T) {
-	// In the UP state the request should make it through to the Client
-	rt, s, c := makeRuntime(t)
-	startRuntime(rt, s, c)
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
+	ctx.expectRuntimeStartTrace()
+	ctx.runtime.Start()
 
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
-	rt.ServeHTTP(rw, req)
-	// if res == nil {
-	// 	t.Errorf("In the UP state there should be a response")
-	// }
-	// if err != nil {
-	// 	t.Errorf("%+v", err)
-	// }
+	// In the UP state, we expect the request to be passed through to the actual application router.
+	ctx.router.EXPECT().ServeHTTP(rw, req)
+	ctx.runtime.ServeHTTP(rw, req)
 }
 
 func TestDoRequestInDOWNState(t *testing.T) {
 	// The handler should result in the client getting called.
-	rt, _, _ := makeRuntime(t)
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
 
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
-	rt.ServeHTTP(rw, req)
-	// TODO check that it is the default response
-	// if res == nil {
-	// 	t.Errorf("In the DOWN state there should be a response")
-	// }
-	// if err != nil {
-	// 	t.Errorf("%+v", err)
-	// }
+	// In the DOWN state we expect the request to be passed on to the default router.
+	ctx.defaultRouter.EXPECT().ServeHTTP(rw, req)
+	ctx.runtime.ServeHTTP(rw, req)
 }
 
 func TestDoRequestInEXITEDState(t *testing.T) {
 	// The handler should result in the client getting called.
-	rt, s, c := makeRuntime(t)
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
 
-	s.EXPECT().Stop()
-	c.EXPECT().Stop()
-	rt.Stop()
+	// We're in the DOWN state so EXITING shouldn't require any clean up on the supervisor/client
+	ctx.runtime.Stop()
 
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
-	rt.ServeHTTP(rw, req)
-	// if res != nil {
-	// 	t.Errorf("There should be no response in the EXITED state%+v", err)
-	// }
-	// if err == nil {
-	// 	t.Errorf("DoRequest should return an error in the EXITED state.")
-	// }
+	// In the EXITED state we expect the request to be passed on to the default router.
+	ctx.defaultRouter.EXPECT().ServeHTTP(rw, req)
+	ctx.runtime.ServeHTTP(rw, req)
 }
 
 func TestHandleSignal(t *testing.T) {
-	// A signal should be passed on to the supervisor.
-	// TODO how to trigger the signal?
-	_, s, _ := makeRuntime(t)
-	s.EXPECT().Signal(syscall.SIGTERM)
+	ctx := makeRuntime(t)
+	defer ctx.Finish()
+	ctx.supervisor.EXPECT().Signal(syscall.SIGTERM)
+	ctx.runtime.Signal(syscall.SIGTERM)
 }
 
 func TestHotReloadFromUPState(t *testing.T) {
-	// When enabled, a change in the file system should result in a restart
-	rt, s, c := makeRuntime(t)
-	startRuntime(rt, s, c)
+	// First we'll set up a temporary directory to make changes in.
+	testDir, err := ioutil.TempDir("", "hot-reload-from-up")
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	defer os.RemoveAll(testDir)
 
-	s.EXPECT().Stop()
-	c.EXPECT().Stop()
+	// Now we set up the runtime and enable filesystem watching. When a change happens, we're
+	// expecting to see a restart happen.
+	ctx := makeRuntime(t, runtime.WatchDir(0, testDir))
+	defer cleanUpWatchers(ctx)
+	defer ctx.Finish()
+	ctx.expectRuntimeStartTrace()
+	ctx.runtime.Start()
 
-	s.EXPECT().Start(map[string]string{"FOLD_SOCK_ADDR": SOCKET})
-	c.EXPECT().Start(SOCKET)
-	c.EXPECT().GetManifest(gomock.Any())
+	// When the file changes we expect to see a restart
+	ctx.expectRuntimeStopTrace()
+	ctx.expectRuntimeStartTrace()
 
-	rt.Trigger(runtime.FILE_CHANGE)
+	// Ok, we're set up so lets change something in the temporary directory.
+	file := filepath.Join(testDir, "new-file")
+	if err := ioutil.WriteFile(file, []byte{}, 0644); err != nil {
+		t.Fatalf("%+v", err)
+	}
 }
 
 func TestHotReloadFromDOWNState(t *testing.T) {
-	// When enabled, a change in the file system should result in a restart
-	rt, s, c := makeRuntime(t)
+	// First we'll set up a temporary directory to make changes in.
+	testDir, err := ioutil.TempDir("", "hot-reload-from-down")
+	if err != nil {
+		t.Fatalf("%+v", err)
+	}
+	defer os.RemoveAll(testDir)
 
-	s.EXPECT().Start(map[string]string{"FOLD_SOCK_ADDR": SOCKET})
-	c.EXPECT().Start(SOCKET)
-	c.EXPECT().GetManifest(gomock.Any())
+	// Now we set up the runtime and enable filesystem watching. When a change happens, we're
+	// expecting to see a restart happen.
+	ctx := makeRuntime(t, runtime.WatchDir(0, testDir))
+	defer cleanUpWatchers(ctx)
+	defer ctx.Finish()
 
-	rt.Trigger(runtime.FILE_CHANGE)
+	// As the runtime is currently down, we only expect to see a start up trace on the change.
+	ctx.expectRuntimeStartTrace()
+
+	// Ok, we're set up so lets change something in the temporary directory.
+	file := filepath.Join(testDir, "new-file")
+	if err := ioutil.WriteFile(file, []byte{}, 0644); err != nil {
+		t.Fatalf("%+v", err)
+	}
+}
+
+func cleanUpWatchers(ctx *testContext) {
+	// The library we're using to watch for file changes behaves a little oddly when there are
+	// multiple watchers on the go. This utility function stops the runtime, which invokes the
+	// exit handler for the watcher and ensures it is cleaned up.
+	// Without this the two hot reload tests work by themselves but not when the whole package
+	// is run.
+	ctx.expectRuntimeStopTrace()
+	ctx.runtime.Stop()
+}
+
+type testContext struct {
+	ctrl          *gomock.Controller
+	runtime       *runtime.Runtime
+	supervisor    *MockSupervisor
+	client        *MockClient
+	router        *MockRouter
+	defaultRouter *MockRouter
+}
+
+func (c *testContext) Finish() {
+	// Some events happen asynchronously. This sleep gives them all time to take place before
+	// we close out the test and check that everything has been called correctly.
+	time.Sleep(10 * time.Millisecond)
+
+	c.ctrl.Finish()
+}
+
+func (c *testContext) expectRuntimeStartTrace() {
+	c.supervisor.EXPECT().Start(map[string]string{"FOLD_SOCK_ADDR": SOCKET})
+	c.supervisor.EXPECT().Wait()
+	c.client.EXPECT().Start(SOCKET)
+	c.client.EXPECT().GetManifest(gomock.Any())
+	c.router.EXPECT().Configure(gomock.Any())
+}
+
+func (c *testContext) expectRuntimeStopTrace() {
+	c.client.EXPECT().Stop()
+	c.supervisor.EXPECT().Stop()
 }
 
 func makeRuntime(
 	t *testing.T,
 	options ...runtime.Option,
-) (*runtime.Runtime, *MockSupervisor, *MockClient) {
+) *testContext {
 	ctrl := gomock.NewController(t)
 	supervisor := NewMockSupervisor(ctrl)
 	client := NewMockClient(ctrl)
 	socketFactory := func() string { return SOCKET }
+	defaultRouter := NewMockRouter(ctrl)
+	activeRouter := NewMockRouter(ctrl)
 	routerFactory := func(logger logging.Logger, doer router.RequestDoer) runtime.Router {
-		return NewMockRouter(ctrl)
+		return activeRouter
 	}
 
 	mocks := []runtime.Option{
@@ -169,6 +291,8 @@ func makeRuntime(
 		runtime.WithClient(client),
 		runtime.WithSocketFactory(socketFactory),
 		runtime.WithRouterFactory(routerFactory),
+		runtime.WithDefaultRouter(defaultRouter),
+		runtime.OnProcessEnd(func() {}),
 	}
 
 	rt := runtime.NewRuntime(
@@ -178,12 +302,12 @@ func makeRuntime(
 		append(mocks, options...)...,
 	)
 
-	return rt, supervisor, client
-}
-
-func startRuntime(rt *runtime.Runtime, s *MockSupervisor, c *MockClient) {
-	s.EXPECT().Start(map[string]string{"FOLD_SOCK_ADDR": SOCKET})
-	c.EXPECT().Start(SOCKET)
-	c.EXPECT().GetManifest(gomock.Any())
-	rt.Start()
+	return &testContext{
+		ctrl:          ctrl,
+		runtime:       rt,
+		supervisor:    supervisor,
+		client:        client,
+		router:        activeRouter,
+		defaultRouter: defaultRouter,
+	}
 }

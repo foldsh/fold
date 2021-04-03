@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -12,7 +13,7 @@ import (
 )
 
 type RequestDoer interface {
-	DoRequest(*transport.Request) (*transport.Response, error)
+	DoRequest(context.Context, *transport.Request) (*transport.Response, error)
 }
 
 // Builds a router from a service manifest. While we could fetch the manfiest
@@ -20,6 +21,16 @@ type RequestDoer interface {
 // how and when we acquire one.
 func NewRouter(logger logging.Logger, doer RequestDoer) *Router {
 	return &Router{logger: logger, doer: doer, router: newRouter()}
+}
+
+var HTTP_METHODS = []string{"GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"}
+
+func NewCatchAllRouter(logger logging.Logger, handler http.Handler) *Router {
+	router := httprouter.New()
+	for _, method := range HTTP_METHODS {
+		router.Handler(method, "/*all", handler)
+	}
+	return &Router{logger: logger, router: router}
 }
 
 type Router struct {
@@ -93,7 +104,7 @@ func (fr *Router) makeHandler(route *manifest.Route) httprouter.Handle {
 			}
 		}
 		req := transport.ReqFromHTTP(r, route.Route, encodePathParams(ps))
-		res, err := fr.doer.DoRequest(req)
+		res, err := fr.doer.DoRequest(r.Context(), req)
 		if err != nil {
 			httpError(w, 500, fmt.Sprintf(`{"title": "Runtime error", "detail": "%v"}`, err))
 			return

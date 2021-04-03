@@ -179,6 +179,18 @@ func TestInvalidCommandShouldErrorAndUpdateStatus(t *testing.T) {
 	}
 }
 
+func TestStopShouldBeIdempotent(t *testing.T) {
+	t.Fatalf("not implemented yet")
+}
+
+func TestKillShouldBeIdempotent(t *testing.T) {
+	t.Fatalf("not implemented yet")
+}
+
+func TestSignalShouldBeIdempotent(t *testing.T) {
+	t.Fatalf("not implemented yet")
+}
+
 func makeProcess(
 	cmd string,
 	args []string,

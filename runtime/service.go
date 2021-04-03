@@ -90,12 +90,17 @@ type Runtime struct {
 	cmd    string
 	args   []string
 
+	// These properties have the same lifetime as the runtime
 	env           map[string]string
 	supervisor    Supervisor
 	client        Client
 	socketFactory SocketFactory
 	routerFactory RouterFactory
+	defaultRouter Router
+	signals       chan os.Signal
+	onProcessEnd  func()
 
+	// These are set dynamically with restarts etc
 	socketAddress string
 	router        Router
 }
@@ -149,70 +154,81 @@ func NewRuntime(
 		args:   Args,
 	}
 
-	// First up we go through the options specified by the caller and apply all of them
+	// First we set up all of the default options. This corresponds to a minimal deployed setting.
+	setDefaultOptions(r)
+
+	// Then we go through the options specified by the caller and apply all of them
 	for _, option := range options {
 		option(r)
 	}
 
-	// Then we go through and set the defaults where they are needed.
-	// TODO move this to before the options and set up the default FSM in there.
-	setDefaultOptions(r)
+	return r
+}
 
-	// Next we set up the FSM
+func setDefaultOptions(r *Runtime) {
+	// First we set the default values of the major dependencies.
+	r.supervisor = supervisor.NewSupervisor(r.logger, r.cmd, r.args, os.Stdout, os.Stdout)
+	r.client = transport.NewIngress(r.logger)
+	r.socketFactory = newAddr
+	r.routerFactory = func(l logging.Logger, d router.RequestDoer) Router {
+		return router.NewRouter(l, d)
+	}
+	// Set up the defautl router and set the main router property to point to it.
+	r.defaultRouter = router.NewCatchAllRouter(r.logger, &defaultRequestDoer{})
+	r.router = r.defaultRouter
+	// Set the default signal channel
+	r.signals = make(chan os.Signal)
+	// Set the default onProcessEnd handler
+	// For now, regardless of the reason for termination, we handle process termination using
+	// a CRASH event. This is because we currently only support long lived processes like
+	// servers which are terminated from the outside. When we support batch jobs this will
+	// change.
+	r.onProcessEnd = func() { r.Emit(CRASH) }
+
+	// Next we set up and configure the default FSM.
 	f := fsm.NewFSM(
+		r.logger,
 		DOWN,
 		fsm.Transitions{
 			{START, DOWN, UP, []fsm.Callback{
 				func() {
 					// TODO how do we handle the errors? Need to add an error
 					// into the Callback type?
-					r.socketAddress = r.socketFactory()
-					env := map[string]string{"FOLD_SOCK_ADDR": r.socketAddress}
-					if err := r.supervisor.Start(env); err != nil {
+					if err := r.startClientAndSupervisor(); err != nil {
 						return
 					}
-					if err := r.client.Start(r.socketAddress); err != nil {
+				},
+			}},
+			{START, UP, UP, []fsm.Callback{
+				func() {
+					if err := r.restartClientAndSupervisor(); err != nil {
+						// TODO how to handle this? This should probably result in a transition
+						// back to the DOWN state, or EXIT, depending on how CRASH is handled.
 						return
 					}
-					return
+				},
+			}},
+			{STOP, UP, EXITED, []fsm.Callback{
+				func() {
+					if err := r.stopClientAndSupervisor(); err != nil {
+						// TODO how to handle this? This should probably result in a transition
+						// back to the DOWN state, or EXIT, depending on how CRASH is handled.
+						return
+					}
 				}},
 			},
 			{STOP, DOWN, EXITED, nil},
-			{STOP, UP, EXITED, nil},
-			// TODO when the appropriate option is set we need to choose one of these two:
 			{CRASH, UP, EXITED, nil},
-			{CRASH, UP, DOWN, nil},
-			// TODO when the option is set, this needs to be registered
-			{FILE_CHANGE, UP, DOWN, []fsm.Callback{
-				func() {
-					// TODO this needs to reference the fsm so that it can
-					// emit the start event when it's done.
-					// f.Emit(START)
-					// We need to provide a way to build up an FSM in multiple
-					// method calls basically.
-				},
-			}},
 		},
 	)
-	r.fsm = f
-	return r
-}
+	// Whenever we transition back to DOWN or EXIT, we want to switch back to the default router.
+	// Transitioning to EXITED will result in a shutdown pretty snappily but we'll set the
+	// default router up again so there is a semblance of graceful handling.
+	f.OnTransitionTo(DOWN, func() { r.router = r.defaultRouter })
+	f.OnTransitionTo(EXITED, func() { r.router = r.defaultRouter })
 
-func setDefaultOptions(r *Runtime) {
-	if r.supervisor == nil {
-		r.supervisor = supervisor.NewSupervisor(r.logger, r.cmd, r.args, os.Stdout, os.Stdout)
-	}
-	if r.client == nil {
-		r.client = transport.NewIngress(r.logger)
-	}
-	if r.socketFactory == nil {
-		r.socketFactory = newAddr
-	}
-	if r.routerFactory == nil {
-		r.routerFactory = func(l logging.Logger, d router.RequestDoer) Router {
-			return router.NewRouter(l, d)
-		}
-	}
+	// Finally we set the FSM on the runtime
+	r.fsm = f
 }
 
 func (r *Runtime) State() fsm.State {
@@ -224,28 +240,90 @@ func (r *Runtime) Router() Router {
 }
 
 func (r *Runtime) Start() {
-	r.Trigger(START)
+	r.Emit(START)
 }
 
 func (r *Runtime) Stop() {
-	r.Trigger(STOP)
+	r.Emit(STOP)
 }
 
-func (r *Runtime) ServeHTTP(http.ResponseWriter, *http.Request) {
-
+func (r *Runtime) Signal(signal os.Signal) {
+	r.supervisor.Signal(signal)
 }
 
-func (r *Runtime) Trigger(event fsm.Event) {
+func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.router.ServeHTTP(w, req)
+}
+
+func (r *Runtime) Emit(event fsm.Event) {
 	r.fsm.Emit(event)
 }
 
-func (r *Runtime) configure() error {
-	r.logger.Debugf("Fetching manifest")
-	// TODO context
+func (r *Runtime) createAndConfigureRouter() error {
+	r.logger.Debugf("Setting up new router")
+	r.router = r.routerFactory(r.logger, r.client)
+	// TODO context should have a timeout
 	manifest, err := r.client.GetManifest(context.Background())
 	if err != nil {
 		r.logger.Fatalf("failed to fetch manifest")
 	}
 	r.router.Configure(manifest)
 	return nil
+}
+
+func (r *Runtime) startClientAndSupervisor() error {
+	r.logger.Debugf("Starting the client and supervisor")
+	r.socketAddress = r.socketFactory()
+	env := map[string]string{"FOLD_SOCK_ADDR": r.socketAddress}
+	if err := r.supervisor.Start(env); err != nil {
+		return err
+	}
+	// Now that we've started the process, we want to set up a goroutine that waits for the process
+	// to terminate. When it does, we'll identify whether it was a crash or not and then emit
+	// the appropriate event.
+	go func() {
+		r.supervisor.Wait()
+		r.onProcessEnd()
+	}()
+	if err := r.client.Start(r.socketAddress); err != nil {
+		return err
+	}
+	if err := r.createAndConfigureRouter(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// TODO it will probably be convenient to make the Stop/Kill methods etc idempotent, or return
+// a useful error. I.e. callng stop on a stopped supervisor/client should be safe.
+func (r *Runtime) stopClientAndSupervisor() error {
+	r.logger.Debugf("Stopping the client and supervisor")
+	if err := r.client.Stop(); err != nil {
+		return err
+	}
+	if err := r.supervisor.Stop(); err != nil {
+		return err
+	}
+	// It's important to note that we don't wait here. Waiting is handled by the goroutine that
+	// is started when the process itself is started. Waiting twice can lead to confusion about
+	// where the notification comes in and how to handle it, so it's better just to do it in one
+	// place.
+	return nil
+}
+
+func (r *Runtime) restartClientAndSupervisor() error {
+	if err := r.stopClientAndSupervisor(); err != nil {
+		return err
+	}
+	if err := r.startClientAndSupervisor(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type defaultRequestDoer struct{}
+
+func (d *defaultRequestDoer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(500)
+	w.Write([]byte(`{"title":"service is down"}`))
 }

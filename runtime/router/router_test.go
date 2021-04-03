@@ -2,10 +2,12 @@ package router
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/foldsh/fold/internal/testutils"
@@ -314,7 +316,10 @@ type mockRequestDoer struct {
 	t *testing.T
 }
 
-func (ms *mockRequestDoer) DoRequest(req *transport.Request) (*transport.Response, error) {
+func (ms *mockRequestDoer) DoRequest(
+	ctx context.Context,
+	req *transport.Request,
+) (*transport.Response, error) {
 	// First up we'll run some generic assertions about the request being
 	// formed.
 	if req.Proto != "HTTP/1.1" {
@@ -407,4 +412,50 @@ func req(
 		t.Fatalf("failed to read body: %v ", err)
 	}
 	return resp.StatusCode, resBody
+}
+
+type catchAllHandler struct{}
+
+func (cah catchAllHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(500)
+	io.WriteString(w, "fold")
+}
+
+func TestCatchAllRouter(t *testing.T) {
+	router := NewCatchAllRouter(logging.NewTestLogger(), catchAllHandler{})
+
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	client := server.Client()
+
+	for _, method := range HTTP_METHODS {
+		for _, path := range []string{"/", "/foo", "/foo/", "/foo/bar/", "/foo/bar/baz"} {
+			var bodyReader io.Reader
+			req, err := http.NewRequest(method, fmt.Sprintf("%s%s", server.URL, path), bodyReader)
+			if err != nil {
+				t.Fatalf("%+v", err)
+			}
+			res, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("%+v", err)
+			}
+			if res.StatusCode != 500 {
+				t.Errorf("Expected a 500 status code but found %d", res.StatusCode)
+			}
+			// A body is never sent for a HEAD request
+			if method != "HEAD" {
+				defer res.Body.Close()
+				body, _ := ioutil.ReadAll(res.Body)
+				if string(body) != "fold" {
+					t.Errorf(
+						"%s %s : expected a body of 'fold' but found %v",
+						method,
+						path,
+						body,
+					)
+				}
+			}
+		}
+	}
 }
