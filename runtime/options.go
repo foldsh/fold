@@ -88,14 +88,14 @@ func WatchDir(frequency time.Duration, dir string) Option {
 type CrashPolicyT uint8
 
 const (
-	EXIT CrashPolicyT = iota + 1
+	KILL CrashPolicyT = iota + 1
 	KEEP_ALIVE
 )
 
 func CrashPolicy(crashPolicy CrashPolicyT) Option {
 	return func(r *Runtime) {
 		switch crashPolicy {
-		case EXIT:
+		case KILL:
 			// This is the default setting so we don't need to do anything.
 			return
 		case KEEP_ALIVE:

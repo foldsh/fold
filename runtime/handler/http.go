@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/foldsh/fold/logging"
@@ -21,16 +20,17 @@ type HTTPHandler struct {
 	server *http.Server
 }
 
-func (h *HTTPHandler) Serve() {
+func (h *HTTPHandler) Serve() error {
 	if err := h.server.ListenAndServe(); err != http.ErrServerClosed {
-		// Error starting or closing listener:
-		log.Fatalf("HTTP server ListenAndServe: %v", err)
+		return err
 	}
+	return nil
 }
 
-func (h *HTTPHandler) Shutdown() {
-	if err := h.server.Shutdown(context.Background()); err != nil {
+func (h *HTTPHandler) Shutdown(ctx context.Context, done chan struct{}) {
+	if err := h.server.Shutdown(ctx); err != nil {
 		// Error from closing listeners, or context timeout:
 		h.logger.Errorf("HTTP server Shutdown: %v", err)
 	}
+	close(done)
 }

@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"context"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 
 func TestServeHTTP(t *testing.T) {
 	h := handler.NewHTTP(logging.NewTestLogger(), serve{}, ":12344")
+	done := make(chan struct{})
 
 	go func() {
 		// Give the server a bit of time to come up
@@ -31,12 +33,13 @@ func TestServeHTTP(t *testing.T) {
 			t.Fatalf("Expected fold but found %s", string(body))
 		}
 		// Now lets shut it all down
-		h.Shutdown()
+		h.Shutdown(context.Background(), done)
 	}()
 
 	// We serve in the main test goroutine. This will exercise the shutdown logic as the test
 	// will block forever without it.
 	h.Serve()
+	<-done
 }
 
 type serve struct{}

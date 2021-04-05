@@ -58,6 +58,21 @@ func TestIngressStop(t *testing.T) {
 	}
 }
 
+func TestIngressStopIsIdempotent(t *testing.T) {
+	addr := "/tmp/fold.client.test-stop.sock"
+	client, server, _ := makeIngress(t, addr, 0)
+	defer server.Stop()
+	if err := client.Start(addr); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if err := client.Stop(); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	if err := client.Stop(); err != nil {
+		t.Fatalf("%+v", err)
+	}
+}
+
 func TestIngressRestart(t *testing.T) {
 	addr := "/tmp/fold.client.test-restart.sock"
 	client, server, logger := makeIngress(t, addr, 0)

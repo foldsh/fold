@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/codes"
 
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/manifest"
@@ -69,6 +70,9 @@ func (i *Ingress) Start(socketAddress string) error {
 
 func (i *Ingress) Stop() error {
 	if err := i.conn.Close(); err != nil {
+		if grpc.Code(err) == codes.Canceled {
+			return nil
+		}
 		return errors.New("failed to close the connection")
 	}
 	return nil

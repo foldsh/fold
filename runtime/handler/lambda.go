@@ -56,8 +56,13 @@ func (lh *LambdaHandler) Handle(
 	return res.toAPIGatewayResponse(), nil
 }
 
-func (lh *LambdaHandler) Serve() {
+func (lh *LambdaHandler) Serve() error {
 	lambda.Start(lh.Handle)
+	return nil
+}
+
+func (lh *LambdaHandler) Shutdown(ctx context.Context, done chan struct{}) {
+	close(done)
 }
 
 type ResponseWriter struct {

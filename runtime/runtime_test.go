@@ -16,9 +16,8 @@ import (
 	"github.com/foldsh/fold/runtime"
 	"github.com/foldsh/fold/runtime/handler"
 	"github.com/foldsh/fold/runtime/router"
+	"github.com/foldsh/fold/runtime/supervisor"
 )
-
-var SOCKET = "/tmp/test.runtime.sock"
 
 func TestStartFromDOWNState(t *testing.T) {
 	// Starting the runtime should start the supervisor and then the client.
@@ -75,6 +74,9 @@ func TestStopFromDOWNState(t *testing.T) {
 	defer ctx.Finish()
 	ctx.runtime.Stop()
 
+	// An EXIT should close the channel
+	<-ctx.done
+
 	if ctx.runtime.State() != runtime.EXITED {
 		t.Errorf(
 			"After stopping the runtime should be in the EXITED state, but found %v",
@@ -90,6 +92,9 @@ func TestStopFromUPState(t *testing.T) {
 	ctx.expectRuntimeStopTrace()
 	ctx.runtime.Start()
 	ctx.runtime.Stop()
+
+	// An EXIT should close the channel
+	<-ctx.done
 
 	if ctx.runtime.State() != runtime.EXITED {
 		t.Errorf(
@@ -128,7 +133,41 @@ func TestKeepAliveOnCrash(t *testing.T) {
 
 	if ctx.runtime.State() != runtime.DOWN {
 		t.Errorf(
-			"Expecte the runtime to transition to the DOWN state, but found %v",
+			"Expected the runtime to transition to the DOWN state, but found %v",
+			ctx.runtime.State(),
+		)
+	}
+}
+
+func TestStopOnSignal(t *testing.T) {
+	// We set the keep alive policy as it is only with that setting that this test is interesting.
+	ctx := makeRuntime(t, runtime.CrashPolicy(runtime.KEEP_ALIVE))
+	defer ctx.Finish()
+
+	mockSignal := make(chan struct{})
+
+	// This is the start
+	ctx.supervisor.EXPECT().Start(map[string]string{"FOLD_SOCK_ADDR": SOCKET})
+	ctx.supervisor.EXPECT().Wait().DoAndReturn(func() error {
+		// Sleep for a bit to simulate the process running
+		<-mockSignal
+		return supervisor.TerminatedBySignal
+	})
+	ctx.client.EXPECT().Start(SOCKET)
+	ctx.client.EXPECT().GetManifest(gomock.Any())
+	ctx.router.EXPECT().Configure(gomock.Any())
+
+	ctx.runtime.Start()
+
+	// If we close the channel we should see a stop trace.
+	ctx.expectRuntimeStopTrace()
+	close(mockSignal)
+
+	<-ctx.done
+
+	if ctx.runtime.State() != runtime.EXITED {
+		t.Errorf(
+			"Expected the runtime to transition to EXIT but found %v",
 			ctx.runtime.State(),
 		)
 	}
@@ -249,6 +288,7 @@ type testContext struct {
 	client        *MockClient
 	router        *MockRouter
 	defaultRouter *MockRouter
+	done          chan struct{}
 }
 
 func (c *testContext) Finish() {
@@ -258,6 +298,8 @@ func (c *testContext) Finish() {
 
 	c.ctrl.Finish()
 }
+
+var SOCKET = "/tmp/test.runtime.sock"
 
 func (c *testContext) expectRuntimeStartTrace() {
 	c.supervisor.EXPECT().Start(map[string]string{"FOLD_SOCK_ADDR": SOCKET})
@@ -295,10 +337,13 @@ func makeRuntime(
 		runtime.OnProcessEnd(func() {}),
 	}
 
+	done := make(chan struct{})
+
 	rt := runtime.NewRuntime(
 		logging.NewTestLogger(),
 		"test",
 		[]string{"arg"},
+		done,
 		append(mocks, options...)...,
 	)
 
@@ -309,5 +354,6 @@ func makeRuntime(
 		client:        client,
 		router:        activeRouter,
 		defaultRouter: defaultRouter,
+		done:          done,
 	}
 }

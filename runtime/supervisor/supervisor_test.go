@@ -17,7 +17,7 @@ func TestShouldStartAProcess(t *testing.T) {
 	if err := s.Start(nil); err != nil {
 		t.Errorf("%+v", err)
 	}
-	status := s.Status()
+	status := s.State()
 	if status != supervisor.RUNNING {
 		t.Errorf("Expected RUNNING but found %v", status)
 	}
@@ -28,7 +28,7 @@ func TestShouldStartAProcess(t *testing.T) {
 	if actual != expectation {
 		t.Errorf("Expected %s but found %s", expectation, actual)
 	}
-	status = s.Status()
+	status = s.State()
 	if status != supervisor.COMPLETE {
 		t.Errorf("Expected COMPLETE but found %v", status)
 	}
@@ -50,7 +50,7 @@ func TestShouldSetEnvCorrectly(t *testing.T) {
 	if actual != expectation {
 		t.Errorf("Expected %s but found %s", expectation, actual)
 	}
-	status := s.Status()
+	status := s.State()
 	if status != supervisor.COMPLETE {
 		t.Errorf("Expected COMPLETE but found %v", status)
 	}
@@ -68,7 +68,7 @@ func TestShouldStopAProcessGracefully(t *testing.T) {
 	if !errors.Is(err, supervisor.TerminatedBySignal) {
 		t.Errorf("Expected TerminatedBySignal but found %+v", err)
 	}
-	status := s.Status()
+	status := s.State()
 	if status != supervisor.COMPLETE {
 		t.Errorf("Expected COMPLETE but found %v", status)
 	}
@@ -86,7 +86,7 @@ func TestShouldKillAProcess(t *testing.T) {
 	if !errors.Is(err, supervisor.TerminatedBySignal) {
 		t.Errorf("Expected TerminatedBySignal but found %+v", err)
 	}
-	status := s.Status()
+	status := s.State()
 	if status != supervisor.COMPLETE {
 		t.Errorf("Expected COMPLETE but found %v", status)
 	}
@@ -104,7 +104,7 @@ func TestShouldSignalAProcess(t *testing.T) {
 	if !errors.Is(err, supervisor.TerminatedBySignal) {
 		t.Errorf("Expected TerminatedBySignal but found %+v", err)
 	}
-	status := s.Status()
+	status := s.State()
 	if status != supervisor.COMPLETE {
 		t.Errorf("Expected COMPLETE but found %v", status)
 	}
@@ -135,7 +135,7 @@ func TestShouldRestartAProcess(t *testing.T) {
 	if actual != expectation {
 		t.Errorf("Expected %s but found %s", expectation, actual)
 	}
-	status := s.Status()
+	status := s.State()
 	if status != supervisor.COMPLETE {
 		t.Errorf("Expected COMPLETE but found %v", status)
 	}
@@ -162,8 +162,8 @@ func TestOnErrorShouldCaptureStderrAndUpdateStatus(t *testing.T) {
 	if errResult != "expr: division by zero\n" {
 		t.Errorf("Expected 'expr: division by zero' but found %s", errResult)
 	}
-	if s.Status() != supervisor.CRASHED {
-		t.Errorf("Expected CRASHED but found %v", s.Status())
+	if s.State() != supervisor.CRASHED {
+		t.Errorf("Expected CRASHED but found %v", s.State())
 	}
 }
 
@@ -174,21 +174,84 @@ func TestInvalidCommandShouldErrorAndUpdateStatus(t *testing.T) {
 	if !errors.As(err, &pe) {
 		t.Errorf("Expected ProcessError but found %v", err)
 	}
-	if s.Status() != supervisor.STARTFAILED {
-		t.Errorf("Expected STARTFAILED but found %v", s.Status())
+	if s.State() != supervisor.STARTFAILED {
+		t.Errorf("Expected STARTFAILED but found %v", s.State())
 	}
 }
 
 func TestStopShouldBeIdempotent(t *testing.T) {
-	t.Fatalf("not implemented yet")
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Stop(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	// Ok we've stopped the process. Calling Stop and Wait again should both just complete
+	// immediately without error.
+	if err := s.Stop(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Wait(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if s.State() != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", s.State())
+	}
 }
 
 func TestKillShouldBeIdempotent(t *testing.T) {
-	t.Fatalf("not implemented yet")
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Kill(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	// Ok we've stopped the process. Calling Stop and Wait again should both just complete
+	// immediately without error.
+	if err := s.Kill(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Wait(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if s.State() != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", s.State())
+	}
 }
 
 func TestSignalShouldBeIdempotent(t *testing.T) {
-	t.Fatalf("not implemented yet")
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Signal(syscall.SIGTERM); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	// Ok we've stopped the process. Calling Stop and Wait again should both just complete
+	// immediately without error.
+	if err := s.Signal(syscall.SIGTERM); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Wait(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if s.State() != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", s.State())
+	}
 }
 
 func makeProcess(

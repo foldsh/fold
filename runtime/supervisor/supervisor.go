@@ -6,15 +6,16 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 
 	"github.com/foldsh/fold/logging"
 )
 
-type Status int
+type State int
 
 const (
-	NOTSTARTED Status = iota + 1
+	NOTSTARTED State = iota + 1
 	STARTFAILED
 	RUNNING
 	CRASHED
@@ -28,9 +29,10 @@ type Supervisor struct {
 	Serr       io.Writer
 	Terminated chan error
 
-	state   Status
-	command *exec.Cmd
-	logger  logging.Logger
+	state      State
+	stateMutex *sync.Mutex
+	command    *exec.Cmd
+	logger     logging.Logger
 }
 
 func NewSupervisor(
@@ -48,11 +50,20 @@ func NewSupervisor(
 		Terminated: make(chan error, 1),
 		logger:     logger,
 		state:      NOTSTARTED,
+		stateMutex: &sync.Mutex{},
 	}
 }
 
-func (s *Supervisor) Status() Status {
+func (s *Supervisor) State() State {
+	s.stateMutex.Lock()
+	defer s.stateMutex.Unlock()
 	return s.state
+}
+
+func (s *Supervisor) setState(state State) {
+	s.stateMutex.Lock()
+	defer s.stateMutex.Unlock()
+	s.state = state
 }
 
 var (
@@ -87,22 +98,22 @@ func (s *Supervisor) Start(env map[string]string) error {
 	}
 	err := command.Start()
 	if err != nil {
-		s.state = STARTFAILED
+		s.setState(STARTFAILED)
 		return ProcessError{Reason: "process failed to start", Inner: err}
 	}
-	s.state = RUNNING
+	s.setState(RUNNING)
 	go func() {
 		err := command.Wait()
 		if err == nil {
 			// The command executed successfully so there is nothing left to do.
-			s.state = COMPLETE
+			s.setState(COMPLETE)
 			s.Terminated <- nil
 			return
 		}
 		var exitErr *exec.ExitError
 		if !errors.As(err, &exitErr) {
 			// Can this even happen given that we have used Start?
-			s.state = STARTFAILED
+			s.setState(STARTFAILED)
 			s.Terminated <- ProcessError{Reason: "process did not run successfully", Inner: err}
 			return
 		}
@@ -110,13 +121,13 @@ func (s *Supervisor) Start(env map[string]string) error {
 		if exitErr.ExitCode() == -1 {
 			// Terminated by a signal, so this is expected.
 			s.logger.Debugf("The process was terminated by a signal")
-			s.state = COMPLETE
+			s.setState(COMPLETE)
 			s.Terminated <- TerminatedBySignal
 			return
 		}
 		// The users program crashed, they have a bug.
 		s.logger.Debugf("The process ended unexpectedly %+v", err)
-		s.state = CRASHED
+		s.setState(CRASHED)
 		s.Terminated <- ProcessError{Reason: "process crashed", Inner: err}
 		return
 	}()
@@ -136,19 +147,31 @@ func (s *Supervisor) Restart(env map[string]string) error {
 
 func (s *Supervisor) Stop() error {
 	s.logger.Debugf("Stopping the process")
+	if s.State() != RUNNING {
+		return nil
+	}
 	return s.Signal(syscall.SIGTERM)
 }
 
 func (s *Supervisor) Kill() error {
 	s.logger.Debugf("Killing the process")
+	if s.State() != RUNNING {
+		return nil
+	}
 	return s.command.Process.Kill()
 }
 
 func (s *Supervisor) Wait() error {
 	s.logger.Debugf("Waiting for the process to terminate")
+	if s.State() != RUNNING {
+		return nil
+	}
 	return <-s.Terminated
 }
 
 func (s *Supervisor) Signal(sig os.Signal) error {
+	if s.State() != RUNNING {
+		return nil
+	}
 	return s.command.Process.Signal(sig)
 }
