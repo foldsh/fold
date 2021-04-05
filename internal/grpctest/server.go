@@ -36,12 +36,12 @@ func NewServer(t *testing.T, logger logging.Logger, foldSockAddr string) *Server
 func (s *Server) Start() {
 	lis, err := net.Listen("unix", s.socket)
 	if err != nil {
-		s.t.Fatalf("%+v")
+		s.t.Fatalf("%+v", err)
 	}
 	s.server = grpc.NewServer()
 	pb.RegisterFoldIngressServer(s.server, s)
 	if err := s.server.Serve(lis); err != nil {
-		s.t.Fatalf("%+v")
+		s.t.Fatalf("%+v", err)
 	}
 }
 
