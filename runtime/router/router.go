@@ -106,7 +106,11 @@ func (fr *Router) makeHandler(route *manifest.Route) httprouter.Handle {
 		req := transport.ReqFromHTTP(r, route.Route, encodePathParams(ps))
 		res, err := fr.doer.DoRequest(r.Context(), req)
 		if err != nil {
-			httpError(w, 500, fmt.Sprintf(`{"title": "Runtime error", "detail": "%v"}`, err))
+			httpError(
+				w,
+				500,
+				fmt.Sprintf(`{"title": "Runtime error", "detail": "%v"}`, err),
+			)
 			return
 		}
 		// Write the status code

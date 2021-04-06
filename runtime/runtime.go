@@ -154,8 +154,8 @@ func configureFSM(r *Runtime) {
 					if err := r.stopClientAndSupervisor(); err != nil {
 						r.exit()
 					}
-				}},
-			},
+				},
+			}},
 			{STOP, DOWN, EXITED, nil},
 			{CRASH, UP, EXITED, nil},
 			{EXIT, UP, EXITED, nil},
@@ -229,6 +229,7 @@ func (r *Runtime) startClientAndSupervisor() error {
 	// the appropriate event.
 	go func() {
 		err := r.supervisor.Wait()
+		r.logger.Debugf("Process terminated")
 		// If the process was stopped by a signal then it was intentional and we want to exit,
 		// regardless of the configured process end behaviour.
 		if errors.Is(err, supervisor.TerminatedBySignal) {
@@ -280,5 +281,5 @@ type defaultRequestDoer struct{}
 
 func (d *defaultRequestDoer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(500)
-	w.Write([]byte(`{"title":"service is down"}`))
+	w.Write([]byte(`{"title":"Service is down"}`))
 }
