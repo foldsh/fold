@@ -104,8 +104,6 @@ func TestStopFromUPState(t *testing.T) {
 	}
 }
 
-// TODO for both of these crash tests, what methods should be called? We should ensure both the
-// client and supervisor are down and ready to start again.
 func TestExitOnCrash(t *testing.T) {
 	// The default behaviour is simply to exit on a crash.
 	ctx := makeRuntime(t)

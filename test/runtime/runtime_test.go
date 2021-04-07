@@ -1,17 +1,14 @@
 package runtime
 
 import (
-	"bytes"
+	"fmt"
 	"io/ioutil"
-	"net/http"
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/foldsh/fold/internal/testutils"
-	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/runtime"
-	"github.com/foldsh/fold/runtime/supervisor"
 )
 
 func TestBasicService(t *testing.T) {
@@ -45,73 +42,46 @@ func TestLocalDevelopmentService(t *testing.T) {
 	tc.Done()
 }
 
-type RuntimeTestCase struct {
-	t    *testing.T
-	rt   *runtime.Runtime
-	done chan struct{}
+func TestHotReload(t *testing.T) {
+	testDir := "./testdata/hot_reload"
+	testFile := filepath.Join(testDir, "main.go")
+	defer os.Remove(testFile)
+	writeService(t, testFile, "hello")
+
+	tc := NewRuntimeTestCase(t, testFile, runtime.WatchDir(5*time.Millisecond, testDir))
+
+	q := tc.query("GET", "/greeting", "")
+	q.expectStatus(200).expectBody(`{"msg":"hello"}`)
+
+	writeService(t, testFile, "goodbye")
+
+	// See the test case above for the rationale behind this sleep. It's not great but putting the
+	// time in to make this unnecessary just isn't worth it right now. We would essentially need
+	// to buffer incoming requests and let them flow through the system only when a router was up
+	// and available. We'd need to run multiple threads inside the runtime which picked requests
+	// off the queue and communicate results back to the calling goroutine via channels.
+	// 1 second isn't strictly necessary but giving it some leeway makes it very reliable
+	time.Sleep(1 * time.Second)
+
+	q = tc.query("GET", "/greeting", "")
+	q.expectStatus(200).expectBody(`{"msg":"goodbye"}`)
 }
 
-func NewRuntimeTestCase(t *testing.T, bin string) *RuntimeTestCase {
-	t.Parallel()
-	logger := logging.NewTestLogger()
-	cmd := "go"
-	args := []string{"run", bin}
-	done := make(chan struct{})
-	sout := &bytes.Buffer{}
-	serr := &bytes.Buffer{}
-	rt := runtime.NewRuntime(
-		logger,
-		cmd,
-		args,
-		done,
-		runtime.WithSupervisor(supervisor.NewSupervisor(logger, cmd, args, sout, serr)),
-		runtime.CrashPolicy(runtime.KEEP_ALIVE),
-	)
-	rt.Start()
-	return &RuntimeTestCase{
-		t:    t,
-		rt:   rt,
-		done: done,
-	}
-}
+func writeService(t *testing.T, path, msg string) {
+	code := fmt.Sprintf(`package main
 
-func (r *RuntimeTestCase) Done() {
-	r.rt.Stop()
-	<-r.done
-}
+import "github.com/foldsh/fold/sdks/go/fold"
 
-func (r *RuntimeTestCase) query(method, path, body string) *QueryAssertion {
-	w := NewResponseWriter()
-	req, err := http.NewRequest(
-		method,
-		path,
-		ioutil.NopCloser(strings.NewReader(body)),
-	)
+func main() {
+	svc := fold.NewService()
+	svc.Get("/greeting", func(req *fold.Request, res *fold.Response) {
+		res.StatusCode = 200
+		res.Body = map[string]interface{}{"msg": "%s"}
+	})
+	svc.Start()
+}`, msg)
+	err := ioutil.WriteFile(path, []byte(code), 0644)
 	if err != nil {
-		r.t.Errorf("%+v", err)
-		r.rt.Stop()
-		<-r.done
+		t.Fatalf("Failed to write to file.")
 	}
-	r.rt.ServeHTTP(w, req)
-	return &QueryAssertion{r.t, w}
-}
-
-type QueryAssertion struct {
-	t *testing.T
-	w *ResponseWriter
-}
-
-func (qa *QueryAssertion) expectStatus(status int) *QueryAssertion {
-	if qa.w.Status() != status {
-		qa.t.Errorf("Expected a %d response code but found %d", status, qa.w.Status())
-	}
-	return qa
-}
-
-func (qa *QueryAssertion) expectBody(body string) *QueryAssertion {
-	actual := qa.w.String()
-	if actual != body {
-		testutils.Diff(qa.t, body, actual, "Body did not match expectation")
-	}
-	return qa
 }
