@@ -31,13 +31,14 @@ func TestDebouncer(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 	traverse(t, testDir, mutateDir)
-	// A small sleep to let all the events filter through. A bit rubbish
-	// but we don't really need the ability to wait built into the watcher.
-	// It's just for this test we need to give it a bit of time so I've
-	// just hacked it like this.
-	time.Sleep(100 * time.Millisecond)
-	// Given we debounce for 100 milliseconds, we should only see counter.increment
-	// actually called once, even though we know a load of events have been detected.
+	// A small sleep to let all the events filter through and the debouncer to
+	// let them through.  A bit rubbish but we don't really need the ability to
+	// wait built into the watcher.  It's just for this test we need to give it
+	// a bit of time so I've just hacked it like this.
+	time.Sleep(110 * time.Millisecond)
+	// Given we debounce for 100 milliseconds, we should only see
+	// counter.increment actually called once, even though we know a load of
+	// events have been detected.
 	expectedNMutations := 1
 	if counter.count != expectedNMutations {
 		t.Errorf("Expected %d mutations but found %d", expectedNMutations, counter.count)
