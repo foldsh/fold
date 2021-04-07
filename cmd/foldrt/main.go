@@ -32,13 +32,15 @@ func main() {
 	watchDir := os.Getenv("FOLD_WATCH_DIR")
 
 	switch stage {
-	case "TEST":
+	case "DEBUG":
 		logger, err = logging.NewLogger(logging.Debug, true)
-	case "PROD":
+	case "TEST":
 		logger, err = logging.NewLogger(logging.Info, true)
+	case "PROD":
+		logger, err = logging.NewLogger(logging.Error, true)
 	default:
 		// Local development mode
-		logger, err = logging.NewLogger(logging.Debug, false)
+		logger, err = logging.NewLogger(logging.Info, false)
 		options = append(options, runtime.CrashPolicy(runtime.KEEP_ALIVE))
 		if watchDir != "" {
 			options = append(options, runtime.WatchDir(100*time.Millisecond, watchDir))
