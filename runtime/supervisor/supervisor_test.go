@@ -1,201 +1,265 @@
-package supervisor
+package supervisor_test
 
 import (
-	"context"
-	"net"
-	"os"
+	"bytes"
+	"errors"
 	"syscall"
 	"testing"
 	"time"
 
-	"google.golang.org/grpc"
-
-	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/logging"
-	"github.com/foldsh/fold/manifest"
-	"github.com/foldsh/fold/runtime/supervisor/pb"
-	"github.com/foldsh/fold/runtime/types"
+	"github.com/foldsh/fold/runtime/supervisor"
 )
 
-var restartCount = 0
-
-// This tests the whole lifecycle of a service, albeit in a fairly abstract
-// way. For the sake of making the test easier I've made an implementation
-// of the foldSubprocess that just uses a goroutine to simulate the interface.
-// This means I can just make a little mock gRPC server in the test file and
-// run it in a goroutine.
-func TestSupervisorIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
+func TestShouldStartAProcess(t *testing.T) {
+	expectation := "TESTINPUT"
+	s, sout, _ := makeProcess("echo", []string{"-n", expectation})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
 	}
-	service := newTestSupervisor(t)
-	service.Start()
-
-	m, err := service.GetManifest()
-	if err != nil {
-		t.Fatalf("Failed to request manifest")
+	status := s.State()
+	if status != supervisor.RUNNING {
+		t.Errorf("Expected RUNNING but found %v", status)
 	}
-	expectation := &manifest.Version{Major: 1, Minor: 0, Patch: 0}
-	if !compareVersion(m.Version, expectation) {
-		t.Fatalf("Exepcted manifest to have version %+v, but found %+v", expectation, m.Version)
+	if err := s.Wait(); err != nil {
+		t.Errorf("%+v", err)
 	}
-
-	req := &types.Request{
-		HTTPMethod: "GET",
-		Body:       []byte(`{"msg": "test_body"}`),
-		Route:      "/test",
+	actual := sout.String()
+	if actual != expectation {
+		t.Errorf("Expected %s but found %s", expectation, actual)
 	}
-	res, err := service.DoRequest(req)
-	if err != nil {
-		t.Fatalf("Failed to make request")
-	}
-	if string(res.Body) != string(req.Body) {
-		t.Fatalf(
-			"Exepcted respond body to equal request body. Expected %v but found %v",
-			req.Body,
-			res.Body,
-		)
-	}
-	// Now, if we restart the service, we should expect to see version two.
-	service.Restart()
-	m, err = service.GetManifest()
-	if err != nil {
-		t.Fatalf("Failed to request manifest")
-	}
-	expectation = &manifest.Version{Major: 2, Minor: 0, Patch: 0}
-	if !compareVersion(m.Version, expectation) {
-		t.Fatalf("Exepcted manifest to have version %+v, but found %+v", expectation, m.Version)
-	}
-
-	// When we shut down there should be no error.
-	if err := service.Signal(syscall.SIGTERM); err != nil {
-		t.Fatalf("+%v", err)
+	status = s.State()
+	if status != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", status)
 	}
 }
 
-func TestSupervisorShouldFunctionWithDeadProcessIntegration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test")
+func TestShouldSetEnvCorrectly(t *testing.T) {
+	s, sout, _ := makeProcess(
+		"bash",
+		[]string{"./testdata/env.sh"},
+	)
+	if err := s.Start(map[string]string{"ONE": "ONE", "TWO": "TWO"}); err != nil {
+		t.Errorf("%+v", err)
 	}
-	service := newTestSupervisor(t)
-	service.Start()
-	service.process.kill()
-	req := &types.Request{
-		HTTPMethod: "GET",
-		Body:       []byte(`{"msg": "test_body"}`),
-		Route:      "/test",
+	if err := s.Wait(); err != nil {
+		t.Errorf("%+v", err)
 	}
-	if res, err := service.DoRequest(req); err != nil {
-		t.Fatalf("Failed to make request")
-	} else {
-		service.logger.Debugf("%+v", res)
-		if res.Status != 502 {
-			t.Errorf("Should have returned 502 with dead process")
-		}
-		testutils.Diff(
-			t, string(CannotServiceRequest),
-			string(res.Body),
-			"Expected body to match CannotServiceRequest message",
-		)
+	actual := sout.String()
+	expectation := "ONETWO"
+	if actual != expectation {
+		t.Errorf("Expected %s but found %s", expectation, actual)
+	}
+	status := s.State()
+	if status != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", status)
 	}
 }
 
-func newTestSupervisor(t *testing.T) *Supervisor {
-	logger := logging.NewTestLogger()
-	return &Supervisor{
-		clientFactory:     newIngressClient,
-		subprocessFactory: newGoSubprocess,
-		logger:            logger,
+func TestShouldStopAProcessGracefully(t *testing.T) {
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Stop(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	status := s.State()
+	if status != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", status)
 	}
 }
 
-// goroutine based implementation of the foldSubprocess
-type goSubprocess struct {
-	server *testIngressServer
-	health bool
-}
-
-func newGoSubprocess(_ logging.Logger, addr string) foldSubprocess {
-	return &goSubprocess{newTestIngressServer(addr), true}
-}
-
-func (gsp *goSubprocess) run(_ string, _ ...string) error {
-	go func() {
-		// A sleep better simulates a new process starting and makes
-		// sure that our logic for waiting for the server to come up
-		// is working properly.
-		time.Sleep(42 * time.Millisecond)
-		gsp.server.start()
-	}()
-	return nil
-}
-
-func (gsp *goSubprocess) wait() error {
-	gsp.kill()
-	return nil
-}
-
-func (gsp *goSubprocess) kill() error {
-	gsp.server.stop()
-	gsp.health = false
-	return nil
-}
-
-func (gsp *goSubprocess) signal(sig os.Signal) error {
-	gsp.kill()
-	return nil
-}
-
-func (gsp *goSubprocess) healthz() bool {
-	return gsp.health
-}
-
-// ingressServer for testing
-type testIngressServer struct {
-	pb.UnimplementedFoldIngressServer
-	socket   string
-	server   *grpc.Server
-	manifest *manifest.Manifest
-}
-
-func newTestIngressServer(foldSockAddr string) *testIngressServer {
-	restartCount += 1
-	manifest := &manifest.Manifest{
-		Version: &manifest.Version{Major: int32(restartCount), Minor: 0, Patch: 0},
+func TestShouldKillAProcess(t *testing.T) {
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
 	}
-	return &testIngressServer{socket: foldSockAddr, manifest: manifest}
-}
-
-func (is *testIngressServer) start() {
-	lis, err := net.Listen("unix", is.socket)
-	if err != nil {
-		panic(err)
+	if err := s.Kill(); err != nil {
+		t.Errorf("%+v", err)
 	}
-	is.server = grpc.NewServer()
-	pb.RegisterFoldIngressServer(is.server, is)
-	if err := is.server.Serve(lis); err != nil {
-		panic(err)
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	status := s.State()
+	if status != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", status)
 	}
 }
 
-func (is *testIngressServer) stop() {
-	is.server.Stop()
+func TestShouldSignalAProcess(t *testing.T) {
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Signal(syscall.SIGTERM); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	status := s.State()
+	if status != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", status)
+	}
 }
 
-func (is *testIngressServer) GetManifest(
-	ctx context.Context,
-	in *pb.ManifestReq,
-) (*manifest.Manifest, error) {
-	return is.manifest, nil
+func TestShouldRestartAProcess(t *testing.T) {
+	s, sout, _ := makeProcess(
+		"bash",
+		[]string{"./testdata/restart.sh"},
+	)
+	if err := s.Start(nil); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if err := s.Restart(nil); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if err := s.Stop(); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	actual := sout.String()
+	expectation := "FOLDFOLD"
+	if actual != expectation {
+		t.Errorf("Expected %s but found %s", expectation, actual)
+	}
+	status := s.State()
+	if status != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", status)
+	}
 }
 
-func (is *testIngressServer) DoRequest(
-	ctx context.Context,
-	in *manifest.FoldHTTPRequest,
-) (*manifest.FoldHTTPResponse, error) {
-	return &manifest.FoldHTTPResponse{Status: 200, Body: in.Body, Headers: nil}, nil
+func TestOnErrorShouldCaptureStderrAndUpdateStatus(t *testing.T) {
+	s, sout, serr := makeProcess(
+		"bash",
+		[]string{"./testdata/error.sh"},
+	)
+	if err := s.Start(nil); err != nil {
+		t.Fatalf("%+v", err)
+	}
+	err := s.Wait()
+	var pe supervisor.ProcessError
+	if !errors.As(err, &pe) {
+		t.Errorf("Expected ProcessError but found %v", err)
+	}
+	outResult := sout.String()
+	if outResult != "" {
+		t.Errorf("Expected an empty string but found %s", outResult)
+	}
+	errResult := serr.String()
+	if errResult != "expr: division by zero\n" {
+		t.Errorf("Expected 'expr: division by zero' but found %s", errResult)
+	}
+	if s.State() != supervisor.CRASHED {
+		t.Errorf("Expected CRASHED but found %v", s.State())
+	}
 }
 
-func compareVersion(a *manifest.Version, b *manifest.Version) bool {
-	return a.Major == b.Major && a.Minor == b.Minor && a.Patch == b.Patch
+func TestInvalidCommandShouldErrorAndUpdateStatus(t *testing.T) {
+	s, _, _ := makeProcess("not-a-command", []string{})
+	err := s.Start(nil)
+	var pe supervisor.ProcessError
+	if !errors.As(err, &pe) {
+		t.Errorf("Expected ProcessError but found %v", err)
+	}
+	if s.State() != supervisor.STARTFAILED {
+		t.Errorf("Expected STARTFAILED but found %v", s.State())
+	}
+}
+
+func TestStopShouldBeIdempotent(t *testing.T) {
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Stop(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	// Ok we've stopped the process. Calling Stop and Wait again should both just complete
+	// immediately without error.
+	if err := s.Stop(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Wait(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if s.State() != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", s.State())
+	}
+}
+
+func TestKillShouldBeIdempotent(t *testing.T) {
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Kill(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	// Ok we've stopped the process. Calling Stop and Wait again should both just complete
+	// immediately without error.
+	if err := s.Kill(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Wait(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if s.State() != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", s.State())
+	}
+}
+
+func TestSignalShouldBeIdempotent(t *testing.T) {
+	s, _, _ := makeProcess("sleep", []string{"999"})
+	if err := s.Start(nil); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Signal(syscall.SIGTERM); err != nil {
+		t.Errorf("%+v", err)
+	}
+	err := s.Wait()
+	if !errors.Is(err, supervisor.TerminatedBySignal) {
+		t.Errorf("Expected TerminatedBySignal but found %+v", err)
+	}
+	// Ok we've stopped the process. Calling Stop and Wait again should both just complete
+	// immediately without error.
+	if err := s.Signal(syscall.SIGTERM); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if err := s.Wait(); err != nil {
+		t.Errorf("%+v", err)
+	}
+	if s.State() != supervisor.COMPLETE {
+		t.Errorf("Expected COMPLETE but found %v", s.State())
+	}
+}
+
+func makeProcess(
+	cmd string,
+	args []string,
+) (*supervisor.Supervisor, *bytes.Buffer, *bytes.Buffer) {
+	sout := &bytes.Buffer{}
+	serr := &bytes.Buffer{}
+	s := supervisor.NewSupervisor(logging.NewTestLogger(), cmd, args, sout, serr)
+	return s, sout, serr
 }

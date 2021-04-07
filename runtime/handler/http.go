@@ -1,26 +1,36 @@
 package handler
 
 import (
+	"context"
 	"net/http"
-	"os"
 
 	"github.com/foldsh/fold/logging"
 )
 
-func NewHTTP(logger logging.Logger, server http.Handler, port string) *HTTPHandler {
-	return &HTTPHandler{logger, server, port}
+func NewHTTP(
+	logger logging.Logger,
+	handler http.Handler,
+	addr string,
+) *HTTPHandler {
+	return &HTTPHandler{logger: logger, server: &http.Server{Addr: addr, Handler: handler}}
 }
 
 type HTTPHandler struct {
 	logger logging.Logger
-	server http.Handler
-	port   string
+	server *http.Server
 }
 
-func (hh *HTTPHandler) Serve() {
-	hh.logger.Debugf("Listening on port %s", hh.port)
-	if err := http.ListenAndServe(hh.port, hh.server); err != nil {
-		hh.logger.Errorf(err.Error())
-		os.Exit(1)
+func (h *HTTPHandler) Serve() error {
+	if err := h.server.ListenAndServe(); err != http.ErrServerClosed {
+		return err
 	}
+	return nil
+}
+
+func (h *HTTPHandler) Shutdown(ctx context.Context, done chan struct{}) {
+	if err := h.server.Shutdown(ctx); err != nil {
+		// Error from closing listeners, or context timeout:
+		h.logger.Errorf("HTTP server Shutdown: %v", err)
+	}
+	close(done)
 }

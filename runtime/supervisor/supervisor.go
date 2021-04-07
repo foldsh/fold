@@ -1,156 +1,177 @@
-// Package service is responsible for the management of a single service, defined
-// by the user. It does this through the management of a subprocess, which is running
-// an application defined with the fold sdk.
-//
-// It exposes a simple RPC based interface for interacting with that subprocess
-// which can be used by the handlers as they wish. Communication between the
-// runtime and the subprocess is done via gRPC over a unix domain socket.
-//
-// This approach was chosen because it results in very little overhead (it adds
-// a few milliseconds to startup time and a few hundred microseconds to each
-// request) and because it allows us to generate much of the code for both sides.
-// This will make it very easy to implement the sdk in multiple languages.
 package supervisor
 
 import (
-	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
+	"os/exec"
+	"sync"
 	"syscall"
 
 	"github.com/foldsh/fold/logging"
-	"github.com/foldsh/fold/manifest"
-	"github.com/foldsh/fold/runtime/types"
 )
+
+type State int
+
+const (
+	NOTSTARTED State = iota + 1
+	STARTFAILED
+	RUNNING
+	CRASHED
+	COMPLETE
+)
+
+type Supervisor struct {
+	Cmd        string
+	Args       []string
+	Sout       io.Writer
+	Serr       io.Writer
+	Terminated chan error
+
+	state      State
+	stateMutex *sync.Mutex
+	command    *exec.Cmd
+	logger     logging.Logger
+}
+
+func NewSupervisor(
+	logger logging.Logger,
+	cmd string,
+	args []string,
+	sout io.Writer,
+	serr io.Writer,
+) *Supervisor {
+	return &Supervisor{
+		Cmd:        cmd,
+		Args:       args,
+		Sout:       sout,
+		Serr:       serr,
+		Terminated: make(chan error, 1),
+		logger:     logger,
+		state:      NOTSTARTED,
+		stateMutex: &sync.Mutex{},
+	}
+}
+
+func (s *Supervisor) State() State {
+	s.stateMutex.Lock()
+	defer s.stateMutex.Unlock()
+	return s.state
+}
+
+func (s *Supervisor) setState(state State) {
+	s.stateMutex.Lock()
+	defer s.stateMutex.Unlock()
+	s.state = state
+}
 
 var (
-	FailedToStartProcess  = errors.New("failed to start subprocess")
-	FailedToStopProcess   = errors.New("failed to stop subprocess")
-	FailedToSignalProcess = errors.New("failed to signal subprocess")
-	CannotServiceRequest  = []byte(
-		`{"title": "Cannot service request","detail":"The application is not running. Please check the logs."}`,
-	)
+	TerminatedBySignal = errors.New("process terminated by a signal")
 )
 
-func NewSupervisor(logger logging.Logger, cmd string, args ...string) *Supervisor {
-	service := &Supervisor{
-		cmd:               cmd,
-		args:              args,
-		logger:            logger,
-		clientFactory:     newIngressClient,
-		subprocessFactory: newSubprocess,
-	}
-	return service
+type ProcessError struct {
+	Reason string
+	Inner  error
 }
 
-// TODO
-// This can all be greatly improved really.
-// What we're trying to do is manage the different states for a client and subprocess.
-// States -> Action:
-//   - process: up, client: up -> Do Request
-//   - process: up, client: down -> Error Response
-//   - process: down, client: up -> Error Response
-//   - process: down, client: down -> Error Response
-// This essentially boils down to two states - Available and NotAvailable.
-// The Available state can only be reached by succesfully calling the Start method - which
-// means that both the process and client have been started succesfully.
-// In all states the process should remain available for restart.
-// Setting the state will need to be synchronised as this is shared by the router which can
-// potentially issue multiple request at once.
-type Supervisor struct {
-	addr              string
-	cmd               string
-	args              []string
-	logger            logging.Logger
-	clientFactory     clientFactory
-	client            *ingressClient
-	subprocessFactory subprocessFactory
-	process           foldSubprocess
-}
-type clientFactory func(logging.Logger, string) *ingressClient
-type subprocessFactory func(logging.Logger, string) foldSubprocess
-
-type foldSubprocess interface {
-	run(string, ...string) error
-	kill() error
-	signal(os.Signal) error
-	healthz() bool
+func (e ProcessError) Error() string {
+	return fmt.Sprintf("%s: %s", e.Reason, e.Inner.Error())
 }
 
-func (s *Supervisor) Start() error {
-	s.addr = newAddr()
-	s.logger.Debugf("starting subprocess with socket %s", s.addr)
-	s.process = s.subprocessFactory(s.logger, s.addr)
-	if err := s.process.run(s.cmd, s.args...); err != nil {
-		return FailedToStartProcess
-	}
+func (e ProcessError) Unwrap() error {
+	return e.Inner
+}
 
-	s.client = s.clientFactory(s.logger, s.addr)
-	s.logger.Debugf("starting gRPC client")
-	if err := s.client.start(); err != nil {
-		s.logger.Debugf("failed to start gRPC client")
-		return FailedToStartProcess
+func (s *Supervisor) Start(env map[string]string) error {
+	s.logger.Debugf("Starting the process")
+	command := exec.Command(s.Cmd, s.Args...)
+	s.command = command
+	command.Stdout = s.Sout
+	command.Stderr = s.Serr
+	command.Env = os.Environ()
+	for key, value := range env {
+		command.Env = append(
+			command.Env,
+			fmt.Sprintf("%s=%s", key, value),
+		)
 	}
+	err := command.Start()
+	if err != nil {
+		s.setState(STARTFAILED)
+		return ProcessError{Reason: "process failed to start", Inner: err}
+	}
+	s.setState(RUNNING)
+	go func() {
+		err := command.Wait()
+		if err == nil {
+			// The command executed successfully so there is nothing left to do.
+			s.setState(COMPLETE)
+			s.Terminated <- nil
+			return
+		}
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			// Can this even happen given that we have used Start?
+			s.setState(STARTFAILED)
+			s.Terminated <- ProcessError{Reason: "process did not run successfully", Inner: err}
+			return
+		}
+		// It's an exit error, so the process ran but stopped for some reason.
+		if exitErr.ExitCode() == -1 {
+			// Terminated by a signal, so this is expected.
+			s.logger.Debugf("The process was terminated by a signal")
+			s.setState(COMPLETE)
+			s.Terminated <- TerminatedBySignal
+			return
+		}
+		// The users program crashed, they have a bug.
+		s.logger.Debugf("The process ended unexpectedly %+v", err)
+		s.setState(CRASHED)
+		s.Terminated <- ProcessError{Reason: "process crashed", Inner: err}
+		return
+	}()
 	return nil
+}
+
+func (s *Supervisor) Restart(env map[string]string) error {
+	s.logger.Debugf("Restarting the process")
+	if err := s.Stop(); err != nil {
+		return fmt.Errorf("failed to restart process: %v", err)
+	}
+	if err := s.Wait(); err != nil && !errors.Is(err, TerminatedBySignal) {
+		return fmt.Errorf("failed to restart process: %v", err)
+	}
+	return s.Start(env)
 }
 
 func (s *Supervisor) Stop() error {
-	if err := s.Signal(syscall.SIGTERM); err != nil {
-		s.logger.Debugf("failed to stop subprocess")
-		return FailedToStopProcess
+	s.logger.Debugf("Stopping the process")
+	if s.State() != RUNNING {
+		return nil
 	}
-	return nil
+	return s.Signal(syscall.SIGTERM)
 }
 
-func (s *Supervisor) Restart() error {
-	s.logger.Debugf("restarting subprocess")
-	if s.process.healthz() {
-		if err := s.Stop(); err != nil {
-			return err
-		}
+func (s *Supervisor) Kill() error {
+	s.logger.Debugf("Killing the process")
+	if s.State() != RUNNING {
+		return nil
 	}
-	if err := s.Start(); err != nil {
-		return err
-	}
-	return nil
+	return s.command.Process.Kill()
 }
 
-func (s *Supervisor) DoRequest(req *types.Request) (*types.Response, error) {
-	s.logger.Debug("performing application request: ", req)
-	if s.process.healthz() {
-		return s.client.doRequest(context.Background(), req)
-	} else {
-		// Bit of a weird error state, but this is quite an easy way to accomplish
-		// the desired effect. Basically, the supervisor should remain responsive when
-		// the child process is unavailable. I.e., just because the subprocess is unhealthy,
-		// it doesn't mean the runtime is too.
-		res := &types.Response{Status: 502, Body: CannotServiceRequest}
-		return res, nil
+func (s *Supervisor) Wait() error {
+	s.logger.Debugf("Waiting for the process to terminate")
+	if s.State() != RUNNING {
+		return nil
 	}
-}
-
-func (s *Supervisor) GetManifest() (*manifest.Manifest, error) {
-	s.logger.Debugf("loading application manifest")
-	return s.client.getManifest(context.Background())
+	return <-s.Terminated
 }
 
 func (s *Supervisor) Signal(sig os.Signal) error {
-	s.logger.Debug("supervisor received signal ", sig)
-	switch sig {
-	case syscall.SIGINT, syscall.SIGTERM:
-		s.logger.Debugf("shutting down application subprocess")
-		defer os.Remove(s.addr)
-		if err := s.process.signal(sig); err != nil {
-			s.logger.Debugf("failed to signal subprocess %+v", err)
-			return FailedToStopProcess
-		}
-	case syscall.SIGKILL:
-		s.logger.Debugf("killing the application subprocess")
-		defer os.Remove(s.addr)
-		if err := s.process.kill(); err != nil {
-			s.logger.Debugf("failed to kill subprocess")
-			return FailedToStopProcess
-		}
+	if s.State() != RUNNING {
+		return nil
 	}
-	return nil
+	return s.command.Process.Signal(sig)
 }

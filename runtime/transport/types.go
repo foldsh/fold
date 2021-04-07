@@ -1,4 +1,4 @@
-package types
+package transport
 
 import (
 	"bytes"

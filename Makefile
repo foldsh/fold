@@ -43,9 +43,9 @@ publish: local-release
 
 protoc:
 	protoc --proto_path=proto \
-		--go_out=runtime/supervisor/pb \
+		--go_out=runtime/transport/pb \
 		--go_opt=paths=source_relative \
-		--go-grpc_out=runtime/supervisor/pb \
+		--go-grpc_out=runtime/transport/pb \
 		--go-grpc_opt=paths=source_relative \
 		proto/ingress.proto
 	protoc --proto_path=proto \
@@ -61,6 +61,9 @@ genmocks:
 	mockgen -source=ctl/project/container_api.go \
 		-destination=ctl/project/mock_container_api_test.go \
 		-package project_test
+	mockgen -source=runtime/runtime.go \
+		-destination=runtime/runtime_mocks_test.go \
+		-package runtime_test
 
 bin:
 	mkdir -p bin

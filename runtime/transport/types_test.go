@@ -1,4 +1,4 @@
-package types_test
+package transport_test
 
 import (
 	"net/http"
@@ -7,11 +7,11 @@ import (
 
 	"github.com/foldsh/fold/internal/testutils"
 	"github.com/foldsh/fold/manifest"
-	"github.com/foldsh/fold/runtime/types"
+	"github.com/foldsh/fold/runtime/transport"
 )
 
 func TestRequestToProto(t *testing.T) {
-	req := &types.Request{
+	req := &transport.Request{
 		HTTPMethod:    "GET",
 		Path:          "/foo/bar",
 		RawQuery:      "foo=bar",
@@ -71,7 +71,7 @@ func TestRequestFromHTTP(t *testing.T) {
 		t.Errorf("%+v", err)
 	}
 	req.RequestURI = url
-	expectation := &types.Request{
+	expectation := &transport.Request{
 		HTTPMethod:    "GET",
 		Path:          "/foo/bar",
 		RawQuery:      "foo=bar",
@@ -91,7 +91,7 @@ func TestRequestFromHTTP(t *testing.T) {
 		QueryParams: map[string][]string{"foo": []string{"bar"}},
 		Route:       "/foo/:baz",
 	}
-	result := types.ReqFromHTTP(req, "/foo/:baz", map[string]string{"baz": "bar"})
+	result := transport.ReqFromHTTP(req, "/foo/:baz", map[string]string{"baz": "bar"})
 	testutils.Diff(t, expectation, result, "Response does not match expectation")
 }
 
@@ -106,7 +106,7 @@ func TestResponseFromProto(t *testing.T) {
 			},
 		},
 	}
-	expectation := &types.Response{
+	expectation := &transport.Response{
 		Status: 200,
 		Body:   []byte("foo"),
 		Headers: map[string][]string{
@@ -114,6 +114,6 @@ func TestResponseFromProto(t *testing.T) {
 			"Content-Type":   []string{"application/json; charset=utf-8"},
 		},
 	}
-	result := types.ResFromProto(res)
+	result := transport.ResFromProto(res)
 	testutils.Diff(t, expectation, result, "Response does not match expectation")
 }

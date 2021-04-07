@@ -6,70 +6,113 @@ package container
 
 import (
 	context "context"
+	io "io"
+	reflect "reflect"
+	time "time"
+
 	types "github.com/docker/docker/api/types"
 	container "github.com/docker/docker/api/types/container"
 	network "github.com/docker/docker/api/types/network"
 	gomock "github.com/golang/mock/gomock"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
-	io "io"
-	reflect "reflect"
-	time "time"
 )
 
-// MockDockerClient is a mock of DockerClient interface
+// MockDockerClient is a mock of DockerClient interface.
 type MockDockerClient struct {
 	ctrl     *gomock.Controller
 	recorder *MockDockerClientMockRecorder
 }
 
-// MockDockerClientMockRecorder is the mock recorder for MockDockerClient
+// MockDockerClientMockRecorder is the mock recorder for MockDockerClient.
 type MockDockerClientMockRecorder struct {
 	mock *MockDockerClient
 }
 
-// NewMockDockerClient creates a new mock instance
+// NewMockDockerClient creates a new mock instance.
 func NewMockDockerClient(ctrl *gomock.Controller) *MockDockerClient {
 	mock := &MockDockerClient{ctrl: ctrl}
 	mock.recorder = &MockDockerClientMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockDockerClient) EXPECT() *MockDockerClientMockRecorder {
 	return m.recorder
 }
 
-// ImagePull mocks base method
-func (m *MockDockerClient) ImagePull(ctx context.Context, ref string, options types.ImagePullOptions) (io.ReadCloser, error) {
+// ContainerCreate mocks base method.
+func (m *MockDockerClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.ContainerCreateCreatedBody, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ImagePull", ctx, ref, options)
-	ret0, _ := ret[0].(io.ReadCloser)
+	ret := m.ctrl.Call(m, "ContainerCreate", ctx, config, hostConfig, networkingConfig, platform, containerName)
+	ret0, _ := ret[0].(container.ContainerCreateCreatedBody)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ImagePull indicates an expected call of ImagePull
-func (mr *MockDockerClientMockRecorder) ImagePull(ctx, ref, options interface{}) *gomock.Call {
+// ContainerCreate indicates an expected call of ContainerCreate.
+func (mr *MockDockerClientMockRecorder) ContainerCreate(ctx, config, hostConfig, networkingConfig, platform, containerName interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImagePull", reflect.TypeOf((*MockDockerClient)(nil).ImagePull), ctx, ref, options)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerCreate", reflect.TypeOf((*MockDockerClient)(nil).ContainerCreate), ctx, config, hostConfig, networkingConfig, platform, containerName)
 }
 
-// ImageList mocks base method
-func (m *MockDockerClient) ImageList(ctx context.Context, options types.ImageListOptions) ([]types.ImageSummary, error) {
+// ContainerList mocks base method.
+func (m *MockDockerClient) ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ImageList", ctx, options)
-	ret0, _ := ret[0].([]types.ImageSummary)
+	ret := m.ctrl.Call(m, "ContainerList", ctx, options)
+	ret0, _ := ret[0].([]types.Container)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ImageList indicates an expected call of ImageList
-func (mr *MockDockerClientMockRecorder) ImageList(ctx, options interface{}) *gomock.Call {
+// ContainerList indicates an expected call of ContainerList.
+func (mr *MockDockerClientMockRecorder) ContainerList(ctx, options interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImageList", reflect.TypeOf((*MockDockerClient)(nil).ImageList), ctx, options)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerList", reflect.TypeOf((*MockDockerClient)(nil).ContainerList), ctx, options)
 }
 
-// ImageBuild mocks base method
+// ContainerRemove mocks base method.
+func (m *MockDockerClient) ContainerRemove(ctx context.Context, containerID string, options types.ContainerRemoveOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainerRemove", ctx, containerID, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ContainerRemove indicates an expected call of ContainerRemove.
+func (mr *MockDockerClientMockRecorder) ContainerRemove(ctx, containerID, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerRemove", reflect.TypeOf((*MockDockerClient)(nil).ContainerRemove), ctx, containerID, options)
+}
+
+// ContainerStart mocks base method.
+func (m *MockDockerClient) ContainerStart(ctx context.Context, containerID string, options types.ContainerStartOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainerStart", ctx, containerID, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ContainerStart indicates an expected call of ContainerStart.
+func (mr *MockDockerClientMockRecorder) ContainerStart(ctx, containerID, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerStart", reflect.TypeOf((*MockDockerClient)(nil).ContainerStart), ctx, containerID, options)
+}
+
+// ContainerStop mocks base method.
+func (m *MockDockerClient) ContainerStop(ctx context.Context, containerID string, timeout *time.Duration) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainerStop", ctx, containerID, timeout)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ContainerStop indicates an expected call of ContainerStop.
+func (mr *MockDockerClientMockRecorder) ContainerStop(ctx, containerID, timeout interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerStop", reflect.TypeOf((*MockDockerClient)(nil).ContainerStop), ctx, containerID, timeout)
+}
+
+// ImageBuild mocks base method.
 func (m *MockDockerClient) ImageBuild(ctx context.Context, buildContext io.Reader, options types.ImageBuildOptions) (types.ImageBuildResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ImageBuild", ctx, buildContext, options)
@@ -78,13 +121,13 @@ func (m *MockDockerClient) ImageBuild(ctx context.Context, buildContext io.Reade
 	return ret0, ret1
 }
 
-// ImageBuild indicates an expected call of ImageBuild
+// ImageBuild indicates an expected call of ImageBuild.
 func (mr *MockDockerClientMockRecorder) ImageBuild(ctx, buildContext, options interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImageBuild", reflect.TypeOf((*MockDockerClient)(nil).ImageBuild), ctx, buildContext, options)
 }
 
-// ImageInspectWithRaw mocks base method
+// ImageInspectWithRaw mocks base method.
 func (m *MockDockerClient) ImageInspectWithRaw(ctx context.Context, imageID string) (types.ImageInspect, []byte, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ImageInspectWithRaw", ctx, imageID)
@@ -94,13 +137,57 @@ func (m *MockDockerClient) ImageInspectWithRaw(ctx context.Context, imageID stri
 	return ret0, ret1, ret2
 }
 
-// ImageInspectWithRaw indicates an expected call of ImageInspectWithRaw
+// ImageInspectWithRaw indicates an expected call of ImageInspectWithRaw.
 func (mr *MockDockerClientMockRecorder) ImageInspectWithRaw(ctx, imageID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImageInspectWithRaw", reflect.TypeOf((*MockDockerClient)(nil).ImageInspectWithRaw), ctx, imageID)
 }
 
-// NetworkCreate mocks base method
+// ImageList mocks base method.
+func (m *MockDockerClient) ImageList(ctx context.Context, options types.ImageListOptions) ([]types.ImageSummary, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ImageList", ctx, options)
+	ret0, _ := ret[0].([]types.ImageSummary)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ImageList indicates an expected call of ImageList.
+func (mr *MockDockerClientMockRecorder) ImageList(ctx, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImageList", reflect.TypeOf((*MockDockerClient)(nil).ImageList), ctx, options)
+}
+
+// ImagePull mocks base method.
+func (m *MockDockerClient) ImagePull(ctx context.Context, ref string, options types.ImagePullOptions) (io.ReadCloser, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ImagePull", ctx, ref, options)
+	ret0, _ := ret[0].(io.ReadCloser)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ImagePull indicates an expected call of ImagePull.
+func (mr *MockDockerClientMockRecorder) ImagePull(ctx, ref, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ImagePull", reflect.TypeOf((*MockDockerClient)(nil).ImagePull), ctx, ref, options)
+}
+
+// NetworkConnect mocks base method.
+func (m *MockDockerClient) NetworkConnect(ctx context.Context, networkID, containerID string, config *network.EndpointSettings) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NetworkConnect", ctx, networkID, containerID, config)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// NetworkConnect indicates an expected call of NetworkConnect.
+func (mr *MockDockerClientMockRecorder) NetworkConnect(ctx, networkID, containerID, config interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkConnect", reflect.TypeOf((*MockDockerClient)(nil).NetworkConnect), ctx, networkID, containerID, config)
+}
+
+// NetworkCreate mocks base method.
 func (m *MockDockerClient) NetworkCreate(ctx context.Context, name string, options types.NetworkCreate) (types.NetworkCreateResponse, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NetworkCreate", ctx, name, options)
@@ -109,27 +196,27 @@ func (m *MockDockerClient) NetworkCreate(ctx context.Context, name string, optio
 	return ret0, ret1
 }
 
-// NetworkCreate indicates an expected call of NetworkCreate
+// NetworkCreate indicates an expected call of NetworkCreate.
 func (mr *MockDockerClientMockRecorder) NetworkCreate(ctx, name, options interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkCreate", reflect.TypeOf((*MockDockerClient)(nil).NetworkCreate), ctx, name, options)
 }
 
-// NetworkRemove mocks base method
-func (m *MockDockerClient) NetworkRemove(ctx context.Context, networkID string) error {
+// NetworkDisconnect mocks base method.
+func (m *MockDockerClient) NetworkDisconnect(ctx context.Context, networkID, containerID string, force bool) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NetworkRemove", ctx, networkID)
+	ret := m.ctrl.Call(m, "NetworkDisconnect", ctx, networkID, containerID, force)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// NetworkRemove indicates an expected call of NetworkRemove
-func (mr *MockDockerClientMockRecorder) NetworkRemove(ctx, networkID interface{}) *gomock.Call {
+// NetworkDisconnect indicates an expected call of NetworkDisconnect.
+func (mr *MockDockerClientMockRecorder) NetworkDisconnect(ctx, networkID, containerID, force interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkRemove", reflect.TypeOf((*MockDockerClient)(nil).NetworkRemove), ctx, networkID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkDisconnect", reflect.TypeOf((*MockDockerClient)(nil).NetworkDisconnect), ctx, networkID, containerID, force)
 }
 
-// NetworkList mocks base method
+// NetworkList mocks base method.
 func (m *MockDockerClient) NetworkList(ctx context.Context, options types.NetworkListOptions) ([]types.NetworkResource, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "NetworkList", ctx, options)
@@ -138,108 +225,22 @@ func (m *MockDockerClient) NetworkList(ctx context.Context, options types.Networ
 	return ret0, ret1
 }
 
-// NetworkList indicates an expected call of NetworkList
+// NetworkList indicates an expected call of NetworkList.
 func (mr *MockDockerClientMockRecorder) NetworkList(ctx, options interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkList", reflect.TypeOf((*MockDockerClient)(nil).NetworkList), ctx, options)
 }
 
-// NetworkConnect mocks base method
-func (m *MockDockerClient) NetworkConnect(ctx context.Context, networkID, containerID string, config *network.EndpointSettings) error {
+// NetworkRemove mocks base method.
+func (m *MockDockerClient) NetworkRemove(ctx context.Context, networkID string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NetworkConnect", ctx, networkID, containerID, config)
+	ret := m.ctrl.Call(m, "NetworkRemove", ctx, networkID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// NetworkConnect indicates an expected call of NetworkConnect
-func (mr *MockDockerClientMockRecorder) NetworkConnect(ctx, networkID, containerID, config interface{}) *gomock.Call {
+// NetworkRemove indicates an expected call of NetworkRemove.
+func (mr *MockDockerClientMockRecorder) NetworkRemove(ctx, networkID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkConnect", reflect.TypeOf((*MockDockerClient)(nil).NetworkConnect), ctx, networkID, containerID, config)
-}
-
-// NetworkDisconnect mocks base method
-func (m *MockDockerClient) NetworkDisconnect(ctx context.Context, networkID, containerID string, force bool) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "NetworkDisconnect", ctx, networkID, containerID, force)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// NetworkDisconnect indicates an expected call of NetworkDisconnect
-func (mr *MockDockerClientMockRecorder) NetworkDisconnect(ctx, networkID, containerID, force interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkDisconnect", reflect.TypeOf((*MockDockerClient)(nil).NetworkDisconnect), ctx, networkID, containerID, force)
-}
-
-// ContainerCreate mocks base method
-func (m *MockDockerClient) ContainerCreate(ctx context.Context, config *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig, platform *v1.Platform, containerName string) (container.ContainerCreateCreatedBody, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ContainerCreate", ctx, config, hostConfig, networkingConfig, platform, containerName)
-	ret0, _ := ret[0].(container.ContainerCreateCreatedBody)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ContainerCreate indicates an expected call of ContainerCreate
-func (mr *MockDockerClientMockRecorder) ContainerCreate(ctx, config, hostConfig, networkingConfig, platform, containerName interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerCreate", reflect.TypeOf((*MockDockerClient)(nil).ContainerCreate), ctx, config, hostConfig, networkingConfig, platform, containerName)
-}
-
-// ContainerStart mocks base method
-func (m *MockDockerClient) ContainerStart(ctx context.Context, containerID string, options types.ContainerStartOptions) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ContainerStart", ctx, containerID, options)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ContainerStart indicates an expected call of ContainerStart
-func (mr *MockDockerClientMockRecorder) ContainerStart(ctx, containerID, options interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerStart", reflect.TypeOf((*MockDockerClient)(nil).ContainerStart), ctx, containerID, options)
-}
-
-// ContainerStop mocks base method
-func (m *MockDockerClient) ContainerStop(ctx context.Context, containerID string, timeout *time.Duration) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ContainerStop", ctx, containerID, timeout)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ContainerStop indicates an expected call of ContainerStop
-func (mr *MockDockerClientMockRecorder) ContainerStop(ctx, containerID, timeout interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerStop", reflect.TypeOf((*MockDockerClient)(nil).ContainerStop), ctx, containerID, timeout)
-}
-
-// ContainerRemove mocks base method
-func (m *MockDockerClient) ContainerRemove(ctx context.Context, containerID string, options types.ContainerRemoveOptions) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ContainerRemove", ctx, containerID, options)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// ContainerRemove indicates an expected call of ContainerRemove
-func (mr *MockDockerClientMockRecorder) ContainerRemove(ctx, containerID, options interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerRemove", reflect.TypeOf((*MockDockerClient)(nil).ContainerRemove), ctx, containerID, options)
-}
-
-// ContainerList mocks base method
-func (m *MockDockerClient) ContainerList(ctx context.Context, options types.ContainerListOptions) ([]types.Container, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ContainerList", ctx, options)
-	ret0, _ := ret[0].([]types.Container)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ContainerList indicates an expected call of ContainerList
-func (mr *MockDockerClientMockRecorder) ContainerList(ctx, options interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerList", reflect.TypeOf((*MockDockerClient)(nil).ContainerList), ctx, options)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NetworkRemove", reflect.TypeOf((*MockDockerClient)(nil).NetworkRemove), ctx, networkID)
 }
