@@ -261,7 +261,7 @@ func serviceNameValidator(serviceName string) error {
 func updateTemplates() {
 	// Get or update the templates.
 	logger.Infof("Updating the templates repository...")
-	out := newStreamLinePrefixer(serr, blue("git: "))
+	out := newOut("git: ")
 	err := git.UpdateTemplates(out, foldTemplates)
 	exitIfErr(err, `Failed to update the template repository.
 Please ensure you are connected to the internet and that you are able to access github.com`)

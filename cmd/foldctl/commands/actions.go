@@ -9,8 +9,10 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/foldsh/fold/ctl/container"
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/ctl/project"
 )
 
@@ -44,11 +46,12 @@ func loadProject() *project.Project {
 	return p
 }
 
-func newOut(outPrefix string) *streamLinePrefixer {
-	return newStreamLinePrefixer(serr, blue(outPrefix))
+func newOut(outPrefix string) io.Writer {
+	m := output.NewMultiplexer(serr)
+	return m.Output(output.WithPrefix(blue(outPrefix)))
 }
 
-func loadProjectWithRuntime(out *streamLinePrefixer) *project.Project {
+func loadProjectWithRuntime(out io.Writer) *project.Project {
 	p := loadProject()
 	rt, err := container.NewRuntime(commandCtx, logger, out)
 	exitIfErr(err)
