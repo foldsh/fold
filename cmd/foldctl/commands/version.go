@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewVersionCmd() *cobra.Command {
+func NewVersionCmd(ctx *CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
 		Example: "foldctl version\nfoldctl --version",

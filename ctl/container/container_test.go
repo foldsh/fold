@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types"
@@ -12,6 +14,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/foldsh/fold/ctl/fs"
 	"github.com/foldsh/fold/internal/testutils"
@@ -300,6 +303,35 @@ func TestGetContainer(t *testing.T) {
 		ID: "b", Name: "fold.foo", Image: Image{Name: "test"}, Mounts: []Mount{Mount{"src", "dst"}},
 	}
 	diffContainers(t, expectation, c)
+}
+
+func TestContainerLogs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	dc := NewMockDockerClient(ctrl)
+	mfs := &mockFileSystem{}
+	rt := mockRuntime(dc, mfs)
+
+	con := &Container{
+		Name:   "testCon",
+		ID:     "testConID",
+		Image:  Image{Name: "fold/test"},
+		Mounts: []Mount{{"foo", "bar"}},
+	}
+
+	dc.
+		EXPECT().
+		ContainerLogs(any, con.ID, types.ContainerLogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Follow:     true,
+		}).
+		Return(ioutil.NopCloser(strings.NewReader("some logs")), nil)
+
+	rc, _ := rt.ContainerLogs(con)
+	log := make([]byte, 9)
+	rc.Read(log)
+	assert.Equal(t, "some logs", string(log))
 }
 
 func mockRuntime(dc DockerClient, fs *mockFileSystem) *ContainerRuntime {

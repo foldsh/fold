@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewDeployCmd() *cobra.Command {
+func NewDeployCmd(ctx *CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "deploy [service]",
 		Example: "foldctl deploy ./service/",

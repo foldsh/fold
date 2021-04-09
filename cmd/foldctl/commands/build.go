@@ -25,7 +25,7 @@ between stages, etc. Additionally, rather than using the name of the directory, 
 will be extracted from the service manifest, and will match the service path on your gateway.`
 )
 
-func NewBuildCmd() *cobra.Command {
+func NewBuildCmd(ctx *CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "build [service]",
 		Example: "foldctl build ./service/",
@@ -38,7 +38,7 @@ func NewBuildCmd() *cobra.Command {
 			out := newOut("docker: ")
 			p := loadProjectWithRuntime(out)
 			service := getService(p, path)
-			service.Build(commandCtx, out)
+			service.Build(ctx.Context, out)
 			// TODO exit with appropriate error message
 		},
 	}

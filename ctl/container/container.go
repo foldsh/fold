@@ -3,6 +3,7 @@ package container
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"unicode/utf8"
 
@@ -23,6 +24,7 @@ var (
 	FailedToStopContainer              = errors.New("failed to stop the container")
 	FailedToRemoveContainer            = errors.New("failed to remove the container")
 	FailedToBindVolume                 = errors.New("failed to bind container volume")
+	FailedToReadLogs                   = errors.New("failed to read container logs")
 
 	foldPrefix = "fold."
 )
@@ -193,4 +195,16 @@ func (cr *ContainerRuntime) listContainers() ([]*Container, error) {
 		}
 	}
 	return foldContainers, nil
+}
+
+func (cr *ContainerRuntime) ContainerLogs(con *Container) (io.ReadCloser, error) {
+	rc, err := cr.cli.ContainerLogs(cr.ctx, con.ID, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+	})
+	if err != nil {
+		return nil, FailedToReadLogs
+	}
+	return rc, nil
 }

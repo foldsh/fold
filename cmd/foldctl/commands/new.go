@@ -15,14 +15,14 @@ import (
 	"github.com/foldsh/fold/ctl/project"
 )
 
-func NewNewCmd() *cobra.Command {
+func NewNewCmd(ctx *CmdCtx) *cobra.Command {
 	newCmd := &cobra.Command{
 		Use:   "new [resource]",
 		Short: "Create new fold resources",
 		Long:  "Create new fold resources",
 	}
-	newCmd.AddCommand(NewProjectCommand())
-	newCmd.AddCommand(NewServiceCommand())
+	newCmd.AddCommand(NewProjectCommand(ctx))
+	newCmd.AddCommand(NewServiceCommand(ctx))
 	return newCmd
 }
 
@@ -57,7 +57,7 @@ Aside from the name, you will be prompted for other values required by the fold 
 	project.ProjectNameRegex,
 )
 
-func NewProjectCommand() *cobra.Command {
+func NewProjectCommand(ctx *CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "project [path]",
 		Example: "foldctl new project\nfoldctl new project path/to/new-project",
@@ -127,7 +127,7 @@ relative to the current project root. The service will be created in a directory
 name as the service itself.
 `, project.ServiceNameRegex)
 
-func NewServiceCommand() *cobra.Command {
+func NewServiceCommand(ctx *CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "service",
 		Example: "foldctl new service",

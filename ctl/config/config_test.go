@@ -19,8 +19,8 @@ func TestLoadCtlConfig(t *testing.T) {
 	cfg, err := config.Load("./testdata/")
 	require.Nil(t, err)
 
-	assert.Equal(t, cfg.Version, "1.2.3", "version should equal 1.2.3")
-	assert.Equal(t, cfg.AccessToken, "ABCDEF123456", "access token should equal ABCDEF123456")
+	assert.Equal(t, "1.2.3", cfg.Version, "version should equal 1.2.3")
+	assert.Equal(t, "ABCDEF123456", cfg.AccessToken, "access token should equal ABCDEF123456")
 }
 
 func TestConfigCreatedIfNotPresent(t *testing.T) {
@@ -33,6 +33,6 @@ func TestConfigCreatedIfNotPresent(t *testing.T) {
 	require.Nil(t, err)
 
 	v := version.FoldVersion.String()
-	assert.Equal(t, cfg.Version, v, fmt.Sprintf("version should equal %s", v))
-	assert.Equal(t, cfg.AccessToken, "", "access token should be empty string")
+	assert.Equal(t, v, cfg.Version, fmt.Sprintf("version should equal %s", v))
+	assert.Equal(t, "", cfg.AccessToken, "access token should be empty string")
 }

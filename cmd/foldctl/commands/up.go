@@ -3,34 +3,56 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/ctl/project"
 	"github.com/foldsh/fold/manifest"
 	"github.com/spf13/cobra"
 )
 
-var port int
+var (
+	// Flags
+	port       int
+	background bool
 
-func NewUpCmd() *cobra.Command {
+	// Help text
+	exampleText = `# Start the gateway
+foldctl up
+
+# Start a single service
+foldctl up ./service-one/
+
+# Start multiple services
+foldctl up ./service-one/ ./service-two/"`
+
+	longText = `Starts the fold development server.
+This will build all of your services and wire them up to a local gateway you can
+access on http://localhost:6123.`
+)
+
+func NewUpCmd(ctx *CmdCtx) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "up [service]",
-		Example: "foldctl up\nfoldctl up ./service-one/\nfoldctl up ./service-one/ ./service-two/",
 		Short:   "Start the fold development server",
-		Long: `Starts the fold development server.
-This will build all of your services and wire them up to a local gateway you can
-access on http://localhost:6123.`,
+		Long:    longText,
+		Example: exampleText,
 		Run: func(cmd *cobra.Command, args []string) {
 			// The current behaviour is that if no services are passed, we just start the network.
-			out := newOut("docker: ")
+			out := ctx.Out.Output(output.WithPrefix(blue("docker: ")))
 			proj := loadProjectWithRuntime(out)
 			proj.ConfigureGatewayPort(port)
+
 			if services, err := proj.GetServices(args...); err == nil {
-				if err := proj.Up(commandCtx, out, services...); err != nil {
+				if err := proj.Up(ctx.Context, out, services...); err != nil {
 					exitWithErr(err)
 				}
 				displayServiceSummary(port, services)
+				if !background {
+					runInForeground(ctx, proj, out, services)
+				}
 			} else {
 				var notAService project.NotAService
 				if errors.As(err, &notAService) {
@@ -41,7 +63,17 @@ access on http://localhost:6123.`,
 		},
 	}
 	cmd.PersistentFlags().IntVarP(&port, "port", "p", 6123, "development server port")
+	cmd.PersistentFlags().BoolVarP(&background, "detach", "d", false, "run in the background")
 	return cmd
+}
+
+func runInForeground(
+	ctx *CmdCtx,
+	proj *project.Project,
+	out io.Writer,
+	services []*project.Service,
+) {
+	fmt.Println("running in fg")
 }
 
 // I am just doing this in here for now as it's not that clear where

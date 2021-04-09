@@ -63,7 +63,8 @@ func Execute() {
 		"fold access token",
 	)
 
-	addCommands(rootCmd)
+	ctx := NewCmdCtx(commandCtx, logger, serr)
+	addCommands(ctx, rootCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		// TODO could be good to look at error types and choose behaviour
@@ -127,11 +128,11 @@ func loadConfig() {
 	}
 }
 
-func addCommands(root *cobra.Command) {
-	root.AddCommand(NewVersionCmd())
-	root.AddCommand(NewBuildCmd())
-	root.AddCommand(NewUpCmd())
-	root.AddCommand(NewDeployCmd())
-	root.AddCommand(NewDownCmd())
-	root.AddCommand(NewNewCmd())
+func addCommands(ctx *CmdCtx, root *cobra.Command) {
+	root.AddCommand(NewVersionCmd(ctx))
+	root.AddCommand(NewBuildCmd(ctx))
+	root.AddCommand(NewUpCmd(ctx))
+	root.AddCommand(NewDeployCmd(ctx))
+	root.AddCommand(NewDownCmd(ctx))
+	root.AddCommand(NewNewCmd(ctx))
 }

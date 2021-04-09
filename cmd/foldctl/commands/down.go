@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewDownCmd() *cobra.Command {
+func NewDownCmd(ctx *CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "down [service]",
 		Example: "foldctl down",
