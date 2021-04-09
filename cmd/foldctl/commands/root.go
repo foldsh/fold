@@ -42,7 +42,7 @@ var (
 	}
 )
 
-func init() {
+func Execute() {
 	setUpLogger()
 	setUpContext()
 	loadConfig()
@@ -62,9 +62,9 @@ func init() {
 		commandCfg.AccessToken,
 		"fold access token",
 	)
-}
 
-func Execute() {
+	addCommands(rootCmd)
+
 	if err := rootCmd.Execute(); err != nil {
 		// TODO could be good to look at error types and choose behaviour
 		// based on that.
@@ -125,4 +125,13 @@ func loadConfig() {
 	} else {
 		exitWithMessage("Failed to read the foldctl config file at ~/.fold/config.yaml. Please ensure it is valid yaml.")
 	}
+}
+
+func addCommands(root *cobra.Command) {
+	root.AddCommand(NewVersionCmd())
+	root.AddCommand(NewBuildCmd())
+	root.AddCommand(NewUpCmd())
+	root.AddCommand(NewDeployCmd())
+	root.AddCommand(NewDownCmd())
+	root.AddCommand(NewNewCmd())
 }
