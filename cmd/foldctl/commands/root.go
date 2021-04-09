@@ -7,17 +7,23 @@ import (
 	"os/signal"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
+	"github.com/foldsh/fold/ctl/config"
+	"github.com/foldsh/fold/ctl/fs"
 	"github.com/foldsh/fold/logging"
 	"github.com/foldsh/fold/version"
 )
 
 var (
-	commandCtx context.Context
 	logger     logging.Logger
-	verbose    bool
-	debug      bool
+	commandCtx context.Context
+	commandCfg *config.Config
+
+	verbose bool
+	debug   bool
+
+	foldHome      string
+	foldTemplates string
 
 	rootCmd = &cobra.Command{
 		Use:     "foldctl",
@@ -36,20 +42,10 @@ var (
 	}
 )
 
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		// TODO could be good to look at error types and choose behaviour
-		// based on that.
-		os.Exit(1)
-	}
-}
-
 func init() {
-	cobra.OnInitialize(func() {
-		setUpLogger()
-		setUpContext()
-		loadConfig()
-	})
+	setUpLogger()
+	setUpContext()
+	loadConfig()
 
 	// Verbose/Debug output
 	rootCmd.SetVersionTemplate(`{{printf "foldctl %s\n" .Version}}`)
@@ -59,9 +55,21 @@ func init() {
 	)
 
 	// Override the access token
-	rootCmd.PersistentFlags().StringP("access-token", "t", "", "fold access token")
-	err := viper.BindPFlag("access-token", rootCmd.PersistentFlags().Lookup("access-token"))
-	exitIfErr(err, "Failed to bind the specified access token.", thisIsABug)
+	rootCmd.PersistentFlags().StringVarP(
+		&commandCfg.AccessToken,
+		"access-token",
+		"t",
+		commandCfg.AccessToken,
+		"fold access token",
+	)
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		// TODO could be good to look at error types and choose behaviour
+		// based on that.
+		os.Exit(1)
+	}
 }
 
 func setUpLogger() {
@@ -99,12 +107,20 @@ func setUpContext() {
 }
 
 func loadConfig() {
-	err := loadConfigAtPath(foldHome)
+	// Set up foldHome path
+	home, err := fs.FoldHome()
+	exitIfErr(err, "Failed to locate fold home directory at ~/.fold.")
+	foldHome = home
+	foldTemplates = fs.FoldTemplates(foldHome)
+
+	// Load the config from home, or create it
+	cfg, err := config.Load(foldHome)
 	if err == nil {
+		commandCfg = cfg
 		return
-	} else if errors.Is(err, couldNotCreateDefaultConfig) {
+	} else if errors.Is(err, config.CreateConfigError) {
 		exitWithMessage("Failed to create the default foldctl config. Check you have permissions to write to ~/.fold/config.yaml")
-	} else if errors.Is(err, couldNotReadConfigFile) {
+	} else if errors.Is(err, config.ReadConfigError) {
 		exitWithMessage("Failed to read the foldctl config file at ~/.fold/config.yaml. Please ensure it is valid yaml.")
 	} else {
 		exitWithMessage("Failed to read the foldctl config file at ~/.fold/config.yaml. Please ensure it is valid yaml.")
