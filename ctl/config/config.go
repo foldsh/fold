@@ -18,6 +18,9 @@ var (
 type Config struct {
 	AccessToken string `mapstructure:"access-token"`
 	Version     string `mapstructure:"version"`
+
+	FoldHome      string
+	FoldTemplates string
 }
 
 func Load(path string) (*Config, error) {
@@ -50,8 +53,10 @@ func Load(path string) (*Config, error) {
 		}
 	}
 	return &Config{
-		AccessToken: viper.GetString("access-token"),
-		Version:     viper.GetString("version"),
+		AccessToken:   viper.GetString("access-token"),
+		Version:       viper.GetString("version"),
+		FoldHome:      path,
+		FoldTemplates: fs.FoldTemplates(path),
 	}, nil
 }
 

@@ -170,7 +170,7 @@ func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 			}
 
 			// And create the path to the relevant template
-			templatePath := filepath.Join(foldTemplates, template, language)
+			templatePath := filepath.Join(ctx.FoldTemplates, template, language)
 
 			// Create the directory for the new service.
 			ctx.Debugf("Creating service directory")
@@ -278,7 +278,7 @@ func updateTemplates(ctx *ctl.CmdCtx) {
 	// Get or update the templates.
 	ctx.Infof("Updating the templates repository...")
 	out := newOut("git: ")
-	err := git.UpdateTemplates(out, foldTemplates)
+	err := git.UpdateTemplates(out, ctx.FoldTemplates)
 	exitIfErr(err, `Failed to update the template repository.
 Please ensure you are connected to the internet and that you are able to access github.com`)
 }
