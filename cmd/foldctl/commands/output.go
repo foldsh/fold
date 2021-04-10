@@ -37,7 +37,6 @@ func exitWithMessage(lines ...string) {
 }
 
 func exitWithErr(err error, lines ...string) {
-	logger.Debugf("exiting with error: %v", err)
 	exitWithMessage(append([]string{err.Error()}, lines...)...)
 }
 
@@ -45,4 +44,8 @@ func exitIfErr(err error, lines ...string) {
 	if err != nil {
 		exitWithErr(err, lines...)
 	}
+}
+
+func trimf(f string, args ...interface{}) string {
+	return strings.TrimSpace(fmt.Sprintf(f, args...))
 }

@@ -6,6 +6,7 @@ package project_test
 
 import (
 	context "context"
+	io "io"
 	reflect "reflect"
 
 	container "github.com/foldsh/fold/ctl/container"
@@ -47,6 +48,21 @@ func (m *MockContainerAPI) BuildImage(img *container.Image) error {
 func (mr *MockContainerAPIMockRecorder) BuildImage(img interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BuildImage", reflect.TypeOf((*MockContainerAPI)(nil).BuildImage), img)
+}
+
+// ContainerLogs mocks base method.
+func (m *MockContainerAPI) ContainerLogs(con *container.Container) (io.ReadCloser, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ContainerLogs", con)
+	ret0, _ := ret[0].(io.ReadCloser)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ContainerLogs indicates an expected call of ContainerLogs.
+func (mr *MockContainerAPIMockRecorder) ContainerLogs(con interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContainerLogs", reflect.TypeOf((*MockContainerAPI)(nil).ContainerLogs), con)
 }
 
 // Context mocks base method.

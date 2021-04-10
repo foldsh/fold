@@ -16,6 +16,7 @@ var (
 	ServiceNameRegex = `^[a-z][a-z-_]+$`
 
 	ServicePathInvalid = errors.New("cannot build an absolute path to the service")
+	ServiceNotRunning  = errors.New("service is not running")
 )
 
 type Service struct {
@@ -24,6 +25,9 @@ type Service struct {
 	Mounts  []string
 	Port    int
 	project *Project
+
+	// Assigned dynamically
+	container *container.Container
 }
 
 type NotAService struct {
@@ -66,6 +70,7 @@ func (s *Service) AbsPath() (string, error) {
 func (s *Service) Start(img *container.Image, net *container.Network) error {
 	s.project.logger.Debugf("%v %v", s, img, net)
 	con := s.project.api.NewContainer(s.containerName(), *img)
+	s.container = con
 	con.NetworkAlias = s.Name
 	if s.Port != 0 {
 		con.Ports = []int{s.Port}
@@ -121,6 +126,17 @@ func (s *Service) Build(ctx context.Context, out io.Writer) (*container.Image, e
 		return nil, err
 	}
 	return img, nil
+}
+
+func (s *Service) Logs() (io.ReadCloser, error) {
+	if s.container == nil {
+		return nil, ServiceNotRunning
+	}
+	rc, err := s.project.api.ContainerLogs(s.container)
+	if err != nil {
+		return nil, errors.New("failed to get container logs")
+	}
+	return rc, nil
 }
 
 func (s *Service) img() (*container.Image, error) {

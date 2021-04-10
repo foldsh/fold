@@ -2,7 +2,7 @@ package version
 
 import "fmt"
 
-var FoldVersion = SemVer{Major: 0, Minor: 1, Patch: 2}
+var FoldVersion = SemVer{Major: 0, Minor: 1, Patch: 3}
 
 type SemVer struct {
 	Major int

@@ -125,6 +125,12 @@ func TestProjectWorkflow(t *testing.T) {
 			}
 			proj.Up(context.Background(), out, proj.Services...)
 
+			// Should get the logs
+			for _, svc := range proj.Services {
+				api.EXPECT().ContainerLogs(gomock.Any())
+				svc.Logs()
+			}
+
 			// Should take down the services
 			for i, svc := range proj.Services {
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)

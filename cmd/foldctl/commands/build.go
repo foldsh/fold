@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"github.com/foldsh/fold/ctl"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +26,7 @@ between stages, etc. Additionally, rather than using the name of the directory, 
 will be extracted from the service manifest, and will match the service path on your gateway.`
 )
 
-func NewBuildCmd(ctx *CmdCtx) *cobra.Command {
+func NewBuildCmd(ctx *ctl.CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "build [service]",
 		Example: "foldctl build ./service/",
@@ -36,7 +37,7 @@ func NewBuildCmd(ctx *CmdCtx) *cobra.Command {
 			path := args[0]
 
 			out := newOut("docker: ")
-			p := loadProjectWithRuntime(out)
+			p := loadProjectWithRuntime(ctx, out)
 			service := getService(p, path)
 			service.Build(ctx.Context, out)
 			// TODO exit with appropriate error message

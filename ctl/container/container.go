@@ -198,6 +198,7 @@ func (cr *ContainerRuntime) listContainers() ([]*Container, error) {
 }
 
 func (cr *ContainerRuntime) ContainerLogs(con *Container) (io.ReadCloser, error) {
+	cr.logger.Debugf("Trailing logs for container %s", con.ID)
 	rc, err := cr.cli.ContainerLogs(cr.ctx, con.ID, types.ContainerLogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,

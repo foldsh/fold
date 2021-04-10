@@ -10,12 +10,13 @@ import (
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 
+	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/fs"
 	"github.com/foldsh/fold/ctl/git"
 	"github.com/foldsh/fold/ctl/project"
 )
 
-func NewNewCmd(ctx *CmdCtx) *cobra.Command {
+func NewNewCmd(ctx *ctl.CmdCtx) *cobra.Command {
 	newCmd := &cobra.Command{
 		Use:   "new [resource]",
 		Short: "Create new fold resources",
@@ -26,7 +27,7 @@ func NewNewCmd(ctx *CmdCtx) *cobra.Command {
 	return newCmd
 }
 
-var projectLong = fmt.Sprintf(
+var projectLong = trimf(
 	`Create a new fold project in the current directory or in the specified path.
 
 If you do not specify a path then the project is created in the current directory and you will 
@@ -57,7 +58,7 @@ Aside from the name, you will be prompted for other values required by the fold 
 	project.ProjectNameRegex,
 )
 
-func NewProjectCommand(ctx *CmdCtx) *cobra.Command {
+func NewProjectCommand(ctx *ctl.CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "project [path]",
 		Example: "foldctl new project\nfoldctl new project path/to/new-project",
@@ -105,13 +106,14 @@ func NewProjectCommand(ctx *CmdCtx) *cobra.Command {
 				Email:      email,
 				Repository: repo,
 			}
-			p.ConfigureLogger(logger)
+			p.ConfigureLogger(ctx.Logger)
 			saveProjectConfig(p)
 		},
 	}
 }
 
-var serviceLong = fmt.Sprintf(`Creates a new fold service from a template.
+var serviceLong = trimf(`
+Creates a new fold service from a template.
 
 The command will run you through a series of prompts to create your new service. You will be
 required to choose a project name, a template and a language. The prompts will give you the
@@ -127,7 +129,7 @@ relative to the current project root. The service will be created in a directory
 name as the service itself.
 `, project.ServiceNameRegex)
 
-func NewServiceCommand(ctx *CmdCtx) *cobra.Command {
+func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "service",
 		Example: "foldctl new service",
@@ -136,9 +138,9 @@ func NewServiceCommand(ctx *CmdCtx) *cobra.Command {
 		Args:    cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			// First up try to load the project to make sure we're in a project root.
-			p := loadProject()
+			p := loadProject(ctx)
 			// We're good to go, lets update the templates
-			updateTemplates()
+			updateTemplates(ctx)
 			// Ok lets prompt for the service name.
 			namePrompt := fmt.Sprintf("Name (must match %s)", project.ServiceNameRegex)
 			name := runPrompt(promptui.Prompt{Label: namePrompt, Validate: serviceNameValidator})
@@ -171,7 +173,7 @@ func NewServiceCommand(ctx *CmdCtx) *cobra.Command {
 			templatePath := filepath.Join(foldTemplates, template, language)
 
 			// Create the directory for the new service.
-			logger.Debugf("Creating service directory")
+			ctx.Debugf("Creating service directory")
 			err = os.MkdirAll(absPath, fs.DIR_PERMISSIONS)
 			exitIfErr(
 				err,
@@ -180,7 +182,7 @@ func NewServiceCommand(ctx *CmdCtx) *cobra.Command {
 			)
 
 			// Copy the contents of the chosen template into the new directory.
-			logger.Debugf("Copying project template to service directory")
+			ctx.Debugf("Copying project template to service directory")
 			err = fs.CopyDir(templatePath, absPath)
 			if err != nil {
 				os.RemoveAll(absPath)
@@ -197,9 +199,9 @@ func NewServiceCommand(ctx *CmdCtx) *cobra.Command {
 			}
 
 			// Update the project config
-			logger.Debugf("Adding service to project")
+			ctx.Debugf("Adding service to project")
 			p.AddService(service)
-			logger.Debugf("Saving project config")
+			ctx.Debugf("Saving project config")
 			saveProjectConfig(p)
 		},
 	}
@@ -272,9 +274,9 @@ func serviceNameValidator(serviceName string) error {
 	return nil
 }
 
-func updateTemplates() {
+func updateTemplates(ctx *ctl.CmdCtx) {
 	// Get or update the templates.
-	logger.Infof("Updating the templates repository...")
+	ctx.Infof("Updating the templates repository...")
 	out := newOut("git: ")
 	err := git.UpdateTemplates(out, foldTemplates)
 	exitIfErr(err, `Failed to update the template repository.

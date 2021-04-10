@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/container"
 	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/ctl/project"
@@ -24,8 +25,8 @@ func projectHome() string {
 	return s
 }
 
-func loadProject() *project.Project {
-	p, err := project.Load(logger, projectHome())
+func loadProject(ctx *ctl.CmdCtx) *project.Project {
+	p, err := project.Load(ctx.Logger, projectHome())
 	if err != nil {
 		if errors.Is(err, project.NotAFoldProject) {
 			exitWithMessage(
@@ -51,9 +52,9 @@ func newOut(outPrefix string) io.Writer {
 	return m.Output(output.WithPrefix(blue(outPrefix)))
 }
 
-func loadProjectWithRuntime(out io.Writer) *project.Project {
-	p := loadProject()
-	rt, err := container.NewRuntime(commandCtx, logger, out)
+func loadProjectWithRuntime(ctx *ctl.CmdCtx, out io.Writer) *project.Project {
+	p := loadProject(ctx)
+	rt, err := container.NewRuntime(ctx.Context, ctx.Logger, out)
 	exitIfErr(err)
 	p.ConfigureContainerAPI(rt)
 	return p

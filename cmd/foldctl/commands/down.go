@@ -1,10 +1,11 @@
 package commands
 
 import (
+	"github.com/foldsh/fold/ctl"
 	"github.com/spf13/cobra"
 )
 
-func NewDownCmd(ctx *CmdCtx) *cobra.Command {
+func NewDownCmd(ctx *ctl.CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "down [service]",
 		Example: "foldctl down",
@@ -15,7 +16,7 @@ access on http://localhost:6123.`,
 		Args: cobra.MaximumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			out := newOut("docker: ")
-			proj := loadProjectWithRuntime(out)
+			proj := loadProjectWithRuntime(ctx, out)
 			proj.Down()
 			// TODO exit with appropriate error message
 		},

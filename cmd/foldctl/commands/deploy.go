@@ -3,10 +3,11 @@ package commands
 import (
 	"fmt"
 
+	"github.com/foldsh/fold/ctl"
 	"github.com/spf13/cobra"
 )
 
-func NewDeployCmd(ctx *CmdCtx) *cobra.Command {
+func NewDeployCmd(ctx *ctl.CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "deploy [service]",
 		Example: "foldctl deploy ./service/",

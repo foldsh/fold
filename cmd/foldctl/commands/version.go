@@ -1,10 +1,11 @@
 package commands
 
 import (
+	"github.com/foldsh/fold/ctl"
 	"github.com/spf13/cobra"
 )
 
-func NewVersionCmd(ctx *CmdCtx) *cobra.Command {
+func NewVersionCmd(ctx *ctl.CmdCtx) *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
 		Example: "foldctl version\nfoldctl --version",

@@ -196,6 +196,7 @@ func (r *Runtime) Signal(signal os.Signal) {
 }
 
 func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.logger.Debugf("Serving request from runtime")
 	r.router.ServeHTTP(w, req)
 }
 
@@ -210,7 +211,7 @@ func (r *Runtime) createAndConfigureRouter() error {
 	defer cancel()
 	manifest, err := r.client.GetManifest(ctx)
 	if err != nil {
-		r.logger.Debugf("failed to fetch manifest")
+		r.logger.Debugf("Failed to fetch manifest")
 		return err
 	}
 	r.router.Configure(manifest)
