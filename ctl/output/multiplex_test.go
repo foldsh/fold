@@ -1,4 +1,4 @@
-package output_test
+package output
 
 import (
 	"io"
@@ -6,14 +6,13 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/internal/testutils"
 )
 
 func TestWithPrefix(t *testing.T) {
 	out := &testWriter{}
-	m := output.NewMultiplexer(out)
-	o := m.Output(output.WithPrefix("TEST: "))
+	m := newMultiplexer(out)
+	o := m.Output(WithPrefix("TEST: "))
 
 	writeBytesAndTestN(t, o, "this is line 1\nthis is line 2\rthis is")
 	writeBytesAndTestN(t, o, " line 3\nthis is line 4\n")
@@ -34,13 +33,13 @@ func TestWithPrefix(t *testing.T) {
 
 func TestConcurrentWrites(t *testing.T) {
 	out := &testWriter{}
-	m := output.NewMultiplexer(out)
+	m := newMultiplexer(out)
 
 	var wg sync.WaitGroup
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func() {
-			o := m.Output(output.WithPrefix("TEST: "))
+			o := m.Output(WithPrefix("TEST: "))
 			writeBytesAndTestN(t, o, "first line\nsecond")
 			writeBytesAndTestN(t, o, " line\n")
 			wg.Done()

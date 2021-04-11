@@ -9,22 +9,22 @@ import (
 
 // This lets you write to an io.Writer with the usual io.Writer interface. However it will also
 // detect new lines in the output and add a specified prefix to each line.
-type Multiplexer struct {
+type multiplexer struct {
 	output io.Writer
 	mu     *sync.Mutex
 }
 
-func NewMultiplexer(output io.Writer) *Multiplexer {
-	return &Multiplexer{output: output, mu: &sync.Mutex{}}
+func newMultiplexer(output io.Writer) *multiplexer {
+	return &multiplexer{output: output, mu: &sync.Mutex{}}
 }
 
-func (m *Multiplexer) writeLine(line string) {
+func (m *multiplexer) Display(r Renderer) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	fmt.Fprint(m.output, line)
+	fmt.Fprint(m.output, r.Render())
 }
 
-func (m *Multiplexer) Output(options ...option) io.Writer {
+func (m *multiplexer) Output(options ...option) io.Writer {
 	out := &output{m: m}
 	for _, o := range options {
 		o(out)
@@ -33,7 +33,7 @@ func (m *Multiplexer) Output(options ...option) io.Writer {
 }
 
 type output struct {
-	m   *Multiplexer
+	m   *multiplexer
 	buf bytes.Buffer
 
 	// Set by options
@@ -52,7 +52,7 @@ func (out *output) Write(p []byte) (n int, err error) {
 		out.buf.WriteByte(b)
 		n += 1
 		if b == '\n' || b == '\r' {
-			out.m.writeLine(fmt.Sprintf("%s%s", out.prefix, out.buf.String()))
+			out.m.Display(Line(fmt.Sprintf("%s%s", out.prefix, out.buf.String())))
 			out.buf.Reset()
 			continue
 		}
