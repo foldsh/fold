@@ -1,12 +1,12 @@
 package container
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types"
@@ -15,6 +15,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/foldsh/fold/ctl/fs"
 	"github.com/foldsh/fold/internal/testutils"
@@ -326,12 +327,28 @@ func TestContainerLogs(t *testing.T) {
 			ShowStderr: true,
 			Follow:     true,
 		}).
-		Return(ioutil.NopCloser(strings.NewReader("some logs")), nil)
-
-	rc, _ := rt.ContainerLogs(con)
-	log := make([]byte, 9)
-	rc.Read(log)
-	assert.Equal(t, "some logs", string(log))
+		Return(
+			ioutil.NopCloser(
+				bytes.NewReader(
+					[]byte{
+						// The first byte of the header says which message stream this is from
+						0x01,
+						// The next 3 bytes are always 0
+						0x00, 0x00, 0x00,
+						// The next 4 bytes are the message size in big endian layout (7 in this case)
+						0x00, 0x00, 0x00, 0x07,
+						// Then we have the message body, in this case the text 'foo bar'
+						0x66, 0x6f, 0x6f, 0x20, 0x62, 0x61, 0x72,
+					},
+				),
+			), nil,
+		)
+	ls, _ := rt.ContainerLogs(con)
+	var buf bytes.Buffer
+	err := ls.Stream(&buf)
+	require.Nil(t, err)
+	ls.Stop()
+	assert.Equal(t, "foo bar", buf.String())
 }
 
 func mockRuntime(dc DockerClient, fs *mockFileSystem) *ContainerRuntime {

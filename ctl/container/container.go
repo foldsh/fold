@@ -11,7 +11,9 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
+
 	"github.com/foldsh/fold/ctl/fs"
 )
 
@@ -197,7 +199,7 @@ func (cr *ContainerRuntime) listContainers() ([]*Container, error) {
 	return foldContainers, nil
 }
 
-func (cr *ContainerRuntime) ContainerLogs(con *Container) (io.ReadCloser, error) {
+func (cr *ContainerRuntime) ContainerLogs(con *Container) (*LogStream, error) {
 	cr.logger.Debugf("Trailing logs for container %s", con.ID)
 	rc, err := cr.cli.ContainerLogs(cr.ctx, con.ID, types.ContainerLogsOptions{
 		ShowStdout: true,
@@ -207,5 +209,18 @@ func (cr *ContainerRuntime) ContainerLogs(con *Container) (io.ReadCloser, error)
 	if err != nil {
 		return nil, FailedToReadLogs
 	}
-	return rc, nil
+	return &LogStream{rc}, nil
+}
+
+type LogStream struct {
+	rc io.ReadCloser
+}
+
+func (ls *LogStream) Stream(w io.Writer) error {
+	_, err := stdcopy.StdCopy(w, w, ls.rc)
+	return err
+}
+
+func (ls *LogStream) Stop() error {
+	return ls.rc.Close()
 }

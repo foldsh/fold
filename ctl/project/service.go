@@ -128,15 +128,15 @@ func (s *Service) Build(ctx context.Context, out io.Writer) (*container.Image, e
 	return img, nil
 }
 
-func (s *Service) Logs() (io.ReadCloser, error) {
+func (s *Service) Logs() (*container.LogStream, error) {
 	if s.container == nil {
 		return nil, ServiceNotRunning
 	}
-	rc, err := s.project.api.ContainerLogs(s.container)
+	ls, err := s.project.api.ContainerLogs(s.container)
 	if err != nil {
 		return nil, errors.New("failed to get container logs")
 	}
-	return rc, nil
+	return ls, nil
 }
 
 func (s *Service) img() (*container.Image, error) {

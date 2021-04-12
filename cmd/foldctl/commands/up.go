@@ -3,16 +3,17 @@ package commands
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/foldsh/fold/ctl"
+	"github.com/foldsh/fold/ctl/container"
 	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/ctl/project"
 	"github.com/foldsh/fold/manifest"
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -80,39 +81,29 @@ func runInForeground(
 	ctx *ctl.CmdCtx,
 	services []*project.Service,
 ) {
-	var chans []chan struct{}
+	var streams []*container.LogStream
+
 	for _, service := range services {
-		c := make(chan struct{})
-		chans = append(chans, c)
 		go func() {
 			ctx.Debugf("Listening to logs for service %s", service.Name)
-			out := ctx.DisplayWriter(output.WithPrefix(fmt.Sprintf("%s: ", service.Name)))
-			rc, err := service.Logs()
+			prefix := output.Blue(fmt.Sprintf("%s: ", service.Name))
+			out := ctx.DisplayWriter(output.WithPrefix(prefix))
+			ls, err := service.Logs()
 			if err != nil {
-				// TODO output as error
-				out.Write([]byte(err.Error()))
+				ctx.Inform(output.Error(err.Error()))
 				return
 			}
-			buf := make([]byte, 1024)
-			for {
-				select {
-				case <-c:
-					ctx.Debugf("SIGINT received by goroutine")
-					break
-				default:
-					n, err := rc.Read(buf)
-					if err == io.EOF {
-						break
-					}
-					out.Write(buf[:n])
-				}
+			streams = append(streams, ls)
+			if err := ls.Stream(out); err != nil {
+				ctx.Inform(output.Error(err.Error()))
+				return
 			}
 		}()
 	}
 	<-ctx.Done()
 	ctx.Debugf("SIGINT received by context")
-	for _, c := range chans {
-		close(c)
+	for _, stream := range streams {
+		stream.Stop()
 	}
 }
 
@@ -127,7 +118,6 @@ func displayServiceSummary(ctx *ctl.CmdCtx, port int, services []*project.Servic
 		waitForHealthz(ctx, serviceURL)
 		ctx.Informf("")
 		resp, err := http.Get(fmt.Sprintf("%s/_foldadmin/manifest", serviceURL))
-		ctx.Informf("get manifest res: %v", resp)
 		if err != nil {
 			ctx.Inform(output.Error(err.Error()))
 		}

@@ -1,12 +1,15 @@
 package output
 
 import (
+	"bufio"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/foldsh/fold/internal/testutils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWithPrefix(t *testing.T) {
@@ -28,7 +31,7 @@ func TestWithPrefix(t *testing.T) {
 		"TEST: this is line 5\n",
 		"TEST: \n",
 	}
-	testutils.Diff(t, expectation, out.lines, "Written lines did not match expectation")
+	assert.Equal(t, expectation, out.lines)
 }
 
 func TestConcurrentWrites(t *testing.T) {
@@ -46,17 +49,47 @@ func TestConcurrentWrites(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if len(out.lines) != 200 {
-		t.Errorf("Expected to see 200 lines written but found %d", len(out.lines))
-	}
+	assert.Equalf(
+		t,
+		200,
+		len(out.lines),
+		"Expected to see 200 lines written but found %d",
+		len(out.lines),
+	)
 	for _, line := range out.lines {
-		if !strings.HasPrefix(line, "TEST: ") {
-			t.Errorf("All lines should start with 'TEST: ' but found %s", line)
-		}
-		if !strings.HasSuffix(line, "line\n") {
-			t.Errorf("All lines should end with 'line\\n' but found %s", line)
-		}
+		assert.Truef(
+			t,
+			strings.HasPrefix(line, "TEST: "),
+			"All lines should start with 'TEST: ' but found %s",
+			line,
+		)
+		assert.Truef(
+			t,
+			strings.HasSuffix(line, "line\n"),
+			"All lines should end with 'line\\n' but found %s",
+			line,
+		)
 	}
+}
+
+func TestWriteComplexData(t *testing.T) {
+	out := &testWriter{}
+	m := newMultiplexer(out)
+
+	file, err := os.Open("./testdata/logs.txt")
+	require.Nil(t, err)
+
+	scanner := bufio.NewScanner(file)
+	// We'll scan each byte at a time and write them all to simulate a stream a bit better.
+	scanner.Split(bufio.ScanBytes)
+	var bytes []byte
+	w := m.newWriter()
+	for scanner.Scan() {
+		b := scanner.Bytes()
+		bytes = append(bytes, b[0])
+		w.Write(b)
+	}
+	assert.Equal(t, string(bytes), strings.Join(out.lines, ""))
 }
 
 type testWriter struct {
@@ -71,7 +104,5 @@ func (tw *testWriter) Write(p []byte) (n int, err error) {
 func writeBytesAndTestN(t *testing.T, w io.Writer, input string) {
 	bytes := []byte(input)
 	n, _ := w.Write(bytes)
-	if n != len(bytes) {
-		t.Errorf("Expected to write %d bytes but wrote %d", len(bytes), n)
-	}
+	assert.Equal(t, len(bytes), n)
 }

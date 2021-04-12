@@ -1,0 +1,92 @@
+{
+  message: {
+    name: 'foo',
+    version: { major: 0, minor: 0, patch: 1 },
+    routes: [
+      {
+        method: 'GET',
+        handler: 'GET /hello/:name',
+        route: '/hello/:name'
+      }
+    ]
+  },
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T13:25:57.275Z'
+}
+{
+  message: 'starting server on socket unix:///tmp/fold.d84815fc-5d58-49cc-81f4-72d6fba0e72f.sock',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T13:25:57.278Z'
+}
+{
+  message: 'binding server to socket unix:///tmp/fold.d84815fc-5d58-49cc-81f4-72d6fba0e72f.sock with port 1',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T13:25:57.282Z'
+}
+{
+  message: 'retrieving service manifest',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T13:25:57.294Z'
+}
+{
+  message: 'handling request for GET /hello/:name',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T20:49:51.183Z'
+}
+{
+  message: 'finished handling request',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T20:49:51.186Z'
+}
+{
+  message: {
+    name: 'foo',
+    version: { major: 0, minor: 0, patch: 1 },
+    routes: [
+      {
+        method: 'GET',
+        handler: 'GET /hello/:name',
+        route: '/hello/:name'
+      }
+    ]
+  },
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T13:25:57.275Z'
+}
+{
+  message: 'starting server on socket unix:///tmp/fold.d84815fc-5d58-49cc-81f4-72d6fba0e72f.sock',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T13:25:57.278Z'
+}
+{
+  message: 'binding server to socket unix:///tmp/fold.d84815fc-5d58-49cc-81f4-72d6fba0e72f.sock with port 1',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T13:25:57.282Z'
+}
+{
+  message: 'retrieving service manifest',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T13:25:57.294Z'
+}
+{
+  message: 'handling request for GET /hello/:name',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T20:49:51.183Z'
+}
+{
+  message: 'finished handling request',
+  level: 'debug',
+  service: 'foo',
+  timestamp: '2021-04-12T20:49:51.186Z'
+}

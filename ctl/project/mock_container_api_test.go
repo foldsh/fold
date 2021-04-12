@@ -6,7 +6,6 @@ package project_test
 
 import (
 	context "context"
-	io "io"
 	reflect "reflect"
 
 	container "github.com/foldsh/fold/ctl/container"
@@ -51,10 +50,10 @@ func (mr *MockContainerAPIMockRecorder) BuildImage(img interface{}) *gomock.Call
 }
 
 // ContainerLogs mocks base method.
-func (m *MockContainerAPI) ContainerLogs(con *container.Container) (io.ReadCloser, error) {
+func (m *MockContainerAPI) ContainerLogs(con *container.Container) (*container.LogStream, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ContainerLogs", con)
-	ret0, _ := ret[0].(io.ReadCloser)
+	ret0, _ := ret[0].(*container.LogStream)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
