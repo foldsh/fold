@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/container"
 )
 
@@ -20,11 +21,13 @@ var (
 )
 
 type Service struct {
-	Name    string
-	Path    string
-	Mounts  []string
-	Port    int
+	Name   string
+	Path   string
+	Mounts []string
+	Port   int
+
 	project *Project
+	ctx     *ctl.CmdCtx
 
 	// Assigned dynamically
 	container *container.Container
@@ -68,7 +71,7 @@ func (s *Service) AbsPath() (string, error) {
 }
 
 func (s *Service) Start(img *container.Image, net *container.Network) error {
-	s.project.logger.Debugf("%v %v", s, img, net)
+	s.ctx.Logger.Debugf("%v %v", s, img, net)
 	con := s.project.api.NewContainer(s.containerName(), *img)
 	s.container = con
 	con.NetworkAlias = s.Name
@@ -92,7 +95,7 @@ func (s *Service) Start(img *container.Image, net *container.Network) error {
 	if err != nil {
 		return err
 	}
-	s.project.logger.Infof("Service %s is up in container %s", s.Name, con.Name)
+	s.ctx.Informf("Service %s is up in container %s", s.Name, con.Name)
 	return nil
 }
 
@@ -105,10 +108,10 @@ func (s *Service) Stop() error {
 		// There is no container for this service, no need do anything.
 		return nil
 	}
-	s.project.logger.Infof("Stopping container %s", container.Name)
+	s.ctx.Informf("Stopping container %s", container.Name)
 	err = s.project.api.StopContainer(container)
 	if err != nil {
-		s.project.logger.Debugf("Failed to stop container %s: %v", container.Name, err)
+		s.ctx.Logger.Debugf("Failed to stop container %s: %v", container.Name, err)
 		return err
 	}
 	return nil
@@ -119,10 +122,10 @@ func (s *Service) Build(ctx context.Context, out io.Writer) (*container.Image, e
 	if err != nil {
 		return nil, err
 	}
-	s.project.logger.Debugf("Preparing to build service %s with tag %s", s.Name, img.Name)
+	s.ctx.Logger.Debugf("Preparing to build service %s with tag %s", s.Name, img.Name)
 	err = s.project.api.BuildImage(img)
 	if err != nil {
-		s.project.logger.Debugf("Failed bo build image %v", err)
+		s.ctx.Logger.Debugf("Failed bo build image %v", err)
 		return nil, err
 	}
 	return img, nil

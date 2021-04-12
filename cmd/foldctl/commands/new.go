@@ -89,13 +89,17 @@ func NewProjectCommand(ctx *ctl.CmdCtx) *cobra.Command {
 				mkDir = true
 			} else {
 				projectPath = "."
-				prompt := fmt.Sprintf("Name (must match %s)", project.ProjectNameRegex)
-				projectName = runPrompt(ctx, prompt, projectNameValidator)
 			}
+			// If the project path is already a fold project we bail.
 			if project.IsAFoldProject(projectPath) {
 				ctx.Inform(output.Error(fmt.Sprintf("%s is already a fold project.", projectPath)))
 				os.Exit(1)
 			}
+
+			// We're all clear so lets prompt for the project name.
+			prompt := fmt.Sprintf("Name (must match %s)", project.ProjectNameRegex)
+			projectName = runPrompt(ctx, prompt, projectNameValidator)
+
 			// Create the project directory if we need to
 			if mkDir {
 				if err := os.MkdirAll(projectPath, fs.DIR_PERMISSIONS); err != nil {
@@ -121,7 +125,7 @@ func NewProjectCommand(ctx *ctl.CmdCtx) *cobra.Command {
 				Email:      email,
 				Repository: repo,
 			}
-			p.ConfigureLogger(ctx.Logger)
+			p.ConfigureCmdCtx(ctx)
 			saveProjectConfig(ctx, p)
 			ctx.Inform(
 				output.Success(fmt.Sprintf("Successfully created the project %s", p.Name)),
@@ -197,10 +201,10 @@ func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 			}
 
 			// And create the path to the relevant template
-			templatePath := filepath.Join(ctx.FoldTemplates, template, language)
+			templatePath := filepath.Join(ctx.Config.FoldTemplates, template, language)
 
 			// Create the directory for the new service.
-			ctx.Debugf("Creating service directory")
+			ctx.Logger.Debugf("Creating service directory")
 			err = os.MkdirAll(absPath, fs.DIR_PERMISSIONS)
 			if err != nil {
 				ctx.Inform(output.Error("Failed to create a directory at the path you specified."))
@@ -208,7 +212,7 @@ func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 			}
 
 			// Copy the contents of the chosen template into the new directory.
-			ctx.Debugf("Copying project template to service directory")
+			ctx.Logger.Debugf("Copying project template to service directory")
 			err = fs.CopyDir(templatePath, absPath)
 			if err != nil {
 				os.RemoveAll(absPath)
@@ -226,9 +230,9 @@ func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 			}
 
 			// Update the project config
-			ctx.Debugf("Adding service to project")
+			ctx.Logger.Debugf("Adding service to project")
 			p.AddService(service)
-			ctx.Debugf("Saving project config")
+			ctx.Logger.Debugf("Saving project config")
 			saveProjectConfig(ctx, p)
 			ctx.Inform(
 				output.Success(fmt.Sprintf("Successfully created the service %s", service.Name)),
@@ -289,7 +293,7 @@ func updateTemplates(ctx *ctl.CmdCtx) {
 	// Get or update the templates.
 	ctx.Inform(output.Line("Updating the templates repository..."))
 	out := ctx.InformWriter(output.WithPrefix(output.Blue("git: ")))
-	err := git.UpdateTemplates(out, ctx.FoldTemplates, version.FoldVersion.String())
+	err := git.UpdateTemplates(out, ctx.Config.FoldTemplates, version.FoldVersion.String())
 	if err != nil {
 		ctx.Inform(output.Error(err.Error()))
 		os.Exit(1)

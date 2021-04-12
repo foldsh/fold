@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/foldsh/fold/ctl"
+	"github.com/foldsh/fold/ctl/config"
 	"github.com/foldsh/fold/ctl/container"
 	"github.com/foldsh/fold/ctl/gateway"
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/ctl/project"
 	"github.com/foldsh/fold/logging"
 	"github.com/golang/mock/gomock"
@@ -39,7 +42,6 @@ func TestProjectWorkflow(t *testing.T) {
 
 		proj := tc.project
 		proj.ConfigureContainerAPI(api)
-		proj.ConfigureLogger(logging.NewTestLogger())
 		t.Run(tc.project.Name, func(t *testing.T) {
 			out := new(bytes.Buffer)
 			netName := fmt.Sprintf("foldnet-%s", proj.Name)
@@ -123,7 +125,7 @@ func TestProjectWorkflow(t *testing.T) {
 					EXPECT().
 					RunContainer(gomock.Eq(net), gomock.Eq(modifiedCon))
 			}
-			proj.Up(context.Background(), out, proj.Services...)
+			proj.Up(out, proj.Services...)
 
 			// Should get the logs
 			for _, svc := range proj.Services {
@@ -182,7 +184,6 @@ func TestUpDoesntDuplicateResources(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 	proj.ConfigureContainerAPI(api)
-	proj.ConfigureLogger(logging.NewTestLogger())
 
 	netName := fmt.Sprintf("foldnet-%s", proj.Name)
 	net := &container.Network{Name: netName}
@@ -211,7 +212,7 @@ func TestUpDoesntDuplicateResources(t *testing.T) {
 		EXPECT().
 		GetContainer(containerName).
 		Return(container, nil)
-	err = proj.Up(context.Background(), &bytes.Buffer{}, svc)
+	err = proj.Up(&bytes.Buffer{}, svc)
 	if err != nil {
 		t.Errorf("expected no error but found %v", err)
 	}
@@ -221,7 +222,14 @@ func makeProject(name string, services ...*project.Service) *project.Project {
 	p := &project.Project{
 		Name: name,
 	}
-	p.ConfigureLogger(logging.NewTestLogger())
+	p.ConfigureCmdCtx(
+		ctl.NewCmdCtx(
+			context.Background(),
+			logging.NewTestLogger(),
+			&config.Config{},
+			output.NewColorOutput(),
+		),
+	)
 	for _, s := range services {
 		svc := p.NewService(s.Name)
 		svc.Port = s.Port

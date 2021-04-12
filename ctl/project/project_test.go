@@ -1,6 +1,7 @@
 package project_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -11,6 +12,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
+	"github.com/foldsh/fold/ctl"
+	"github.com/foldsh/fold/ctl/config"
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/ctl/project"
 	"github.com/foldsh/fold/logging"
 )
@@ -28,7 +32,8 @@ func TestProjectConfigValidation(t *testing.T) {
 	}
 	cfgPath := filepath.Join(dir, "fold.yaml")
 
-	_, err = project.Load(logger, dir)
+	ctx := newCmdCtx(logger, dir)
+	_, err = project.Load(ctx, dir)
 	if !errors.Is(err, project.NotAFoldProject) {
 		t.Errorf("Empty directory should not be a valid fold project")
 	}
@@ -40,7 +45,7 @@ func TestProjectConfigValidation(t *testing.T) {
 	if !project.IsAFoldProject(dir) {
 		t.Errorf("After creating a fold.yaml file it should be a valid fold project")
 	}
-	_, err = project.Load(logger, dir)
+	_, err = project.Load(ctx, dir)
 	if !errors.Is(err, project.InvalidConfig) {
 		t.Errorf("Non yaml file should lead to an InvalidConfig error.")
 	}
@@ -50,7 +55,7 @@ func TestProjectConfigValidation(t *testing.T) {
 		t.Fatalf("Failed to write to config file.")
 	}
 
-	cfg, err := project.Load(logger, dir)
+	cfg, err := project.Load(ctx, dir)
 	if !errors.Is(err, project.InvalidConfig) {
 		logger.Debugf("Loaded config: %+v", cfg)
 		t.Errorf("Expected InvalidConfig but got %v\n", err)
@@ -71,7 +76,7 @@ services:
 	if err != nil {
 		t.Fatalf("Failed to write to config file.")
 	}
-	cfg, err = project.Load(logger, dir)
+	cfg, err = project.Load(ctx, dir)
 	if err != nil {
 		t.Errorf("Expected to load config but got error %v", err)
 	}
@@ -114,7 +119,8 @@ func TestProjectLoadingAndSaving(t *testing.T) {
 		},
 	}
 	p.SaveConfig(dir)
-	loaded, err := project.Load(logger, dir)
+	ctx := newCmdCtx(logger, dir)
+	loaded, err := project.Load(ctx, dir)
 	diffConfig(t, p, loaded)
 }
 
@@ -140,7 +146,7 @@ func TestProjectAddService(t *testing.T) {
 			},
 		},
 	}
-	p.ConfigureLogger(logger)
+	p.ConfigureCmdCtx(newCmdCtx(logging.NewTestLogger(), ""))
 	if err := p.SaveConfig(dir); err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -155,7 +161,8 @@ func TestProjectAddService(t *testing.T) {
 		t.Fatalf("%+v", err)
 	}
 
-	if loaded, err := project.Load(logger, dir); err != nil {
+	ctx := newCmdCtx(logger, dir)
+	if loaded, err := project.Load(ctx, dir); err != nil {
 		t.Fatalf("%+v", err)
 	} else {
 		diffConfig(t, p, loaded)
@@ -170,7 +177,7 @@ func TestProjectServiceUtils(t *testing.T) {
 		Repository: "github.com/tom",
 		Services:   []*project.Service{},
 	}
-	p.ConfigureLogger(logging.NewTestLogger())
+	p.ConfigureCmdCtx(newCmdCtx(logging.NewTestLogger(), ""))
 	p.AddService(project.Service{Name: "a", Path: "a"})
 	expectation := &project.Project{
 		Name:       "foo",
@@ -271,4 +278,13 @@ func diffConfig(t *testing.T, expectation, actual interface{}) {
 	); diff != "" {
 		t.Errorf("Expected loaded config to equal input (-want +got):\n%s", diff)
 	}
+}
+
+func newCmdCtx(logger logging.Logger, dir string) *ctl.CmdCtx {
+	return ctl.NewCmdCtx(
+		context.Background(),
+		logger,
+		&config.Config{FoldHome: dir},
+		output.NewColorOutput(),
+	)
 }

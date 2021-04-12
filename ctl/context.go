@@ -10,9 +10,10 @@ import (
 
 type CmdCtx struct {
 	context.Context
-	logging.Logger
-	*config.Config
 	*output.Output
+
+	Logger logging.Logger
+	Config *config.Config
 }
 
 func NewCmdCtx(

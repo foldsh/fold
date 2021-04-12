@@ -28,7 +28,7 @@ func projectHome(ctx *ctl.CmdCtx) string {
 }
 
 func loadProject(ctx *ctl.CmdCtx) *project.Project {
-	p, err := project.Load(ctx.Logger, projectHome(ctx))
+	p, err := project.Load(ctx, projectHome(ctx))
 	if err != nil {
 		if errors.Is(err, project.NotAFoldProject) {
 			ctx.Inform(output.Error("this is not a fold project root."))

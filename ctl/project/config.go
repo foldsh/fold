@@ -4,7 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/foldsh/fold/logging"
+	"github.com/foldsh/fold/ctl"
 	"github.com/spf13/viper"
 )
 
@@ -22,17 +22,22 @@ type onDiskService struct {
 	Mounts []string `mapstructure:"mounts"`
 }
 
-func (odp *onDiskProject) unmarshal(logger logging.Logger) *Project {
+func (odp *onDiskProject) unmarshal(ctx *ctl.CmdCtx) *Project {
 	p := &Project{
 		Name:       odp.Name,
 		Maintainer: odp.Maintainer,
 		Email:      odp.Email,
 		Repository: odp.Repository,
+		ctx:        ctx,
 	}
-	p.ConfigureLogger(logger)
 	for _, ods := range odp.Services {
-		svc := &Service{Name: ods.Name, Path: ods.Path, Mounts: ods.Mounts}
-		svc.project = p
+		svc := &Service{
+			Name:    ods.Name,
+			Path:    ods.Path,
+			Mounts:  ods.Mounts,
+			project: p,
+			ctx:     ctx,
+		}
 		p.Services = append(p.Services, svc)
 	}
 	return p
@@ -53,30 +58,30 @@ func marshalProject(p *Project) *onDiskProject {
 }
 
 // Looks for fold.yaml in the current directory and loads it.
-func load(logger logging.Logger, location string) (*Project, error) {
+func load(ctx *ctl.CmdCtx, location string) (*Project, error) {
 	v := newViper(location)
 	var fileNotFound viper.ConfigFileNotFoundError
 	err := v.ReadInConfig()
 	if err != nil {
 		if errors.As(err, &fileNotFound) {
-			logger.Debugf("config file not found %v", err)
+			ctx.Logger.Debugf("config file not found %v", err)
 			return nil, NotAFoldProject
 		} else {
-			logger.Debugf("config file invalid %v", err)
+			ctx.Logger.Debugf("config file invalid %v", err)
 			return nil, InvalidConfig
 		}
 	}
 	if !validateConfig(v) {
-		logger.Debugf("invalid config: must set name, maintainer, email and repository")
+		ctx.Logger.Debugf("invalid config: must set name, maintainer, email and repository")
 		return nil, InvalidConfig
 	}
 	var odp *onDiskProject
 	err = v.Unmarshal(&odp)
 	if err != nil {
-		logger.Debugf("failed to unmarshal config %v", err)
+		ctx.Logger.Debugf("failed to unmarshal config %v", err)
 		return nil, InvalidConfig
 	}
-	return odp.unmarshal(logger), nil
+	return odp.unmarshal(ctx), nil
 }
 
 func saveConfig(p *Project, to string) error {
@@ -88,7 +93,7 @@ func saveConfig(p *Project, to string) error {
 	v.Set("repository", odp.Repository)
 	v.Set("services", odp.Services)
 	if err := v.WriteConfigAs(filepath.Join(to, "fold.yaml")); err != nil {
-		p.logger.Debugf("Failed to write config %+v", err)
+		p.ctx.Logger.Debugf("Failed to write config %+v", err)
 		return CantWriteConfig
 	}
 	return nil

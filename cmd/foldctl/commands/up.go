@@ -53,7 +53,7 @@ func NewUpCmd(ctx *ctl.CmdCtx) *cobra.Command {
 			proj.ConfigureGatewayPort(port)
 
 			if services, err := proj.GetServices(args...); err == nil {
-				if err := proj.Up(ctx.Context, out, services...); err != nil {
+				if err := proj.Up(out, services...); err != nil {
 					ctx.Inform(output.Error(err.Error()))
 					os.Exit(1)
 				}
@@ -85,7 +85,7 @@ func runInForeground(
 
 	for _, service := range services {
 		go func() {
-			ctx.Debugf("Listening to logs for service %s", service.Name)
+			ctx.Logger.Debugf("Listening to logs for service %s", service.Name)
 			prefix := output.Blue(fmt.Sprintf("%s: ", service.Name))
 			out := ctx.DisplayWriter(output.WithPrefix(prefix))
 			ls, err := service.Logs()
@@ -101,7 +101,7 @@ func runInForeground(
 		}()
 	}
 	<-ctx.Done()
-	ctx.Debugf("SIGINT received by context")
+	ctx.Logger.Debugf("SIGINT received by context")
 	for _, stream := range streams {
 		stream.Stop()
 	}
