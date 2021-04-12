@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -13,7 +12,9 @@ import (
 	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/fs"
 	"github.com/foldsh/fold/ctl/git"
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/ctl/project"
+	"github.com/foldsh/fold/version"
 )
 
 func NewNewCmd(ctx *ctl.CmdCtx) *cobra.Command {
@@ -70,35 +71,49 @@ func NewProjectCommand(ctx *ctl.CmdCtx) *cobra.Command {
 				projectPath string
 				projectName string
 				mkDir       bool // Ugly but overall nicer than the alternative imo.
+
+				projectNameValidator = newRegexValidator(ctx, project.ProjectNameRegex, "project")
 			)
 			if len(args) != 0 {
 				projectPath = args[0]
 				abs, err := filepath.Abs(projectPath)
-				exitIfErr(err, fmt.Sprintf("%s is not a valid path", projectPath))
+				if err != nil {
+					ctx.Inform(output.Error(fmt.Sprintf("%s is not a valid path", projectPath)))
+				}
 				projectName = filepath.Base(abs)
 				err = projectNameValidator(projectName)
-				exitIfErr(err)
+				if err != nil {
+					ctx.Inform(output.Error(err.Error()))
+					os.Exit(1)
+				}
 				mkDir = true
 			} else {
 				projectPath = "."
 				prompt := fmt.Sprintf("Name (must match %s)", project.ProjectNameRegex)
-				projectName = runPrompt(promptui.Prompt{Label: prompt, Validate: projectNameValidator})
+				projectName = runPrompt(ctx, prompt, projectNameValidator)
 			}
 			if project.IsAFoldProject(projectPath) {
-				exitWithMessage(fmt.Sprintf("%s is already a fold project.", projectPath))
+				ctx.Inform(output.Error(fmt.Sprintf("%s is already a fold project.", projectPath)))
+				os.Exit(1)
 			}
 			// Create the project directory if we need to
 			if mkDir {
 				if err := os.MkdirAll(projectPath, fs.DIR_PERMISSIONS); err != nil {
-					exitWithMessage(
-						fmt.Sprintf("Failed to create the project directory at %s", projectPath),
+					ctx.Inform(
+						output.Error(
+							fmt.Sprintf(
+								"failed to create the project directory at %s",
+								projectPath,
+							),
+						),
 					)
+					os.Exit(1)
 				}
 			}
 			// Prompt for the rest of the details
-			maintainer := runPrompt(promptui.Prompt{Label: "Maintainer"})
-			email := runPrompt(promptui.Prompt{Label: "Email"})
-			repo := runPrompt(promptui.Prompt{Label: "Repository"})
+			maintainer := runPrompt(ctx, "Maintainer", output.NoopValidator)
+			email := runPrompt(ctx, "Email", output.NoopValidator)
+			repo := runPrompt(ctx, "Repository", output.NoopValidator)
 
 			p := &project.Project{
 				Name:       projectName,
@@ -107,7 +122,10 @@ func NewProjectCommand(ctx *ctl.CmdCtx) *cobra.Command {
 				Repository: repo,
 			}
 			p.ConfigureLogger(ctx.Logger)
-			saveProjectConfig(p)
+			saveProjectConfig(ctx, p)
+			ctx.Inform(
+				output.Success(fmt.Sprintf("Successfully created the project %s", p.Name)),
+			)
 		},
 	}
 }
@@ -142,31 +160,40 @@ func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 			// We're good to go, lets update the templates
 			updateTemplates(ctx)
 			// Ok lets prompt for the service name.
+
+			serviceNameValidator := newRegexValidator(ctx, project.ServiceNameRegex, "service")
 			namePrompt := fmt.Sprintf("Name (must match %s)", project.ServiceNameRegex)
-			name := runPrompt(promptui.Prompt{Label: namePrompt, Validate: serviceNameValidator})
+			name := runPrompt(ctx, namePrompt, serviceNameValidator)
 			// TODO we can generate the list of template and language options dynamically but this is
 			// fine for now.
 			// And now the template
-			template := runSelect(promptui.Select{Label: "Template", Items: []string{"basic"}})
+			template := runSelect(ctx, "Template", []string{"basic"})
 			// And finally the language
-			language := runSelect(
-				promptui.Select{Label: "Language", Items: []string{"go", "js", "ts"}},
-			)
+			language := runSelect(ctx, "Language", []string{"go", "js", "ts"})
 			// Build the absolute path to the new service.
 			servicePath := filepath.Join(".", name)
 			absPath, err := filepath.Abs(servicePath)
-			exitIfErr(err, servicePathInvalid)
+			if err != nil {
+				ctx.Inform(servicePathInvalid)
+			}
 
 			// Check if the directory is empty
 			empty, err := fs.IsEmpty(absPath)
 			if err == nil && !empty {
-				exitWithMessage(
-					fmt.Sprintf(
-						"The target directory %s already exists and is not empty.",
-						absPath,
+				ctx.Inform(
+					output.Error(
+						fmt.Sprintf(
+							"the target directory %s already exists and is not empty.",
+							absPath,
+						),
 					),
-					"Please either choose a different name for your service or remove the existing directory.",
 				)
+				ctx.Inform(
+					output.Line(
+						"Please either choose a different name for your service or remove the existing directory.",
+					),
+				)
+				os.Exit(1)
 			}
 
 			// And create the path to the relevant template
@@ -175,21 +202,21 @@ func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 			// Create the directory for the new service.
 			ctx.Debugf("Creating service directory")
 			err = os.MkdirAll(absPath, fs.DIR_PERMISSIONS)
-			exitIfErr(
-				err,
-				"Failed to create a directory at the path you specified.",
-				checkPermissions,
-			)
+			if err != nil {
+				ctx.Inform(output.Error("Failed to create a directory at the path you specified."))
+				ctx.Inform(output.Line(checkPermissions))
+			}
 
 			// Copy the contents of the chosen template into the new directory.
 			ctx.Debugf("Copying project template to service directory")
 			err = fs.CopyDir(templatePath, absPath)
 			if err != nil {
 				os.RemoveAll(absPath)
-				exitWithMessage(
-					"Failed to create a project template at the path you specified.",
-					checkPermissions,
+				ctx.Inform(
+					output.Error("failed to create a project template at the path you specified."),
 				)
+				ctx.Inform(output.Line(checkPermissions))
+				os.Exit(1)
 			}
 
 			// We're just about done, create the service so we can add it to the project
@@ -202,83 +229,69 @@ func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 			ctx.Debugf("Adding service to project")
 			p.AddService(service)
 			ctx.Debugf("Saving project config")
-			saveProjectConfig(p)
+			saveProjectConfig(ctx, p)
+			ctx.Inform(
+				output.Success(fmt.Sprintf("Successfully created the service %s", service.Name)),
+			)
 		},
 	}
 }
 
-func runSelect(sel promptui.Select) string {
-	_, value, err := sel.Run()
-	return evalPrompt(value, sel.Label.(string), err)
+func runSelect(ctx *ctl.CmdCtx, label string, items []string) string {
+	value, err := ctx.Select(label, items)
+	if err != nil {
+		ctx.Inform(output.Error(err.Error()))
+		os.Exit(1)
+	}
+	return value
 }
 
-func runPrompt(prompt promptui.Prompt) string {
-	value, err := prompt.Run()
-	return evalPrompt(value, prompt.Label.(string), err)
+func runPrompt(ctx *ctl.CmdCtx, label string, validator func(string) error) string {
+	value, err := ctx.Prompt(label, validator)
+	if err != nil {
+		ctx.Inform(output.Error(err.Error()))
+		os.Exit(1)
+	}
+	return value
 }
 
-func evalPrompt(value, label string, err error) string {
+func evalPrompt(ctx *ctl.CmdCtx, value, label string, err error) string {
 	if err != nil {
 		if errors.Is(err, promptui.ErrInterrupt) {
-			print("Aborting!")
 			os.Exit(1)
 		} else {
-			exitWithMessage(fmt.Sprintf("Specified %s is not valid.", label))
+			ctx.Inform(output.Error(fmt.Sprintf("specified %s is not valid.", label)))
+			os.Exit(1)
 		}
 	}
 	return value
 }
 
-var regexMatchError = errors.New("string does not match regex")
-
-func regexValidator(regex, str string) error {
-	match, err := regexp.MatchString(regex, str)
-	if err != nil {
-		return err
-	}
-	if !match {
-		return regexMatchError
-	}
-	return nil
-}
-
-func projectNameValidator(projectName string) error {
-	err := regexValidator(project.ProjectNameRegex, projectName)
-	if err != nil {
-		if errors.Is(err, regexMatchError) {
-			return fmt.Errorf(
-				"%s is not a valid project name. It must match the regex %s",
-				projectName,
-				project.ProjectNameRegex,
-			)
-		} else {
-			return fmt.Errorf("Failed to validate project name %s", projectName)
+func newRegexValidator(ctx *ctl.CmdCtx, regex, target string) output.Validator {
+	return func(input string) error {
+		err := output.RegexValidator(regex, input)
+		if err != nil {
+			if errors.Is(err, output.RegexMatchError) {
+				return fmt.Errorf(
+					"%s is not a valid %s name. It must match the regex %s",
+					input,
+					target,
+					regex,
+				)
+			}
+			return fmt.Errorf("failed to validate project name %s", input)
 		}
+		return nil
 	}
-	return nil
-}
-
-func serviceNameValidator(serviceName string) error {
-	err := regexValidator(project.ServiceNameRegex, serviceName)
-	if err != nil {
-		if errors.Is(err, regexMatchError) {
-			return fmt.Errorf(
-				"%s is not a valid service name. It must match the regex %s",
-				serviceName,
-				project.ServiceNameRegex,
-			)
-		} else {
-			return fmt.Errorf("Failed to validate project name %s", serviceName)
-		}
-	}
-	return nil
 }
 
 func updateTemplates(ctx *ctl.CmdCtx) {
 	// Get or update the templates.
-	ctx.Infof("Updating the templates repository...")
-	out := newOut("git: ")
-	err := git.UpdateTemplates(out, ctx.FoldTemplates)
-	exitIfErr(err, `Failed to update the template repository.
-Please ensure you are connected to the internet and that you are able to access github.com`)
+	ctx.Inform(output.Line("Updating the templates repository..."))
+	out := ctx.InformWriter(output.WithPrefix(output.Blue("git: ")))
+	err := git.UpdateTemplates(out, ctx.FoldTemplates, version.FoldVersion.String())
+	if err != nil {
+		ctx.Inform(output.Error(err.Error()))
+		os.Exit(1)
+	}
 }

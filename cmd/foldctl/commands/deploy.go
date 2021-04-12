@@ -3,8 +3,10 @@ package commands
 import (
 	"fmt"
 
-	"github.com/foldsh/fold/ctl"
 	"github.com/spf13/cobra"
+
+	"github.com/foldsh/fold/ctl"
+	"github.com/foldsh/fold/ctl/output"
 )
 
 func NewDeployCmd(ctx *ctl.CmdCtx) *cobra.Command {
@@ -21,7 +23,7 @@ This will build your service and then deploy it to your fold account.`,
 			} else {
 				service = "."
 			}
-			fmt.Printf("Deploying service %s", service)
+			ctx.Inform(output.Line(fmt.Sprintf("Deploying service %s", service)))
 		},
 	}
 }

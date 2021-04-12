@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,22 +11,26 @@ import (
 	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/config"
 	"github.com/foldsh/fold/ctl/fs"
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/logging"
 )
 
 func main() {
+	// Set up the output
+	out := output.NewColorOutput()
+
 	// Set up the logger
-	logger := setUpLogger()
+	logger := setUpLogger(out)
 
 	// Create the Context and listen for an interrupt
 	ctx, cleanup := createContext()
 	defer cleanup()
 
 	// Load the CLI config
-	cfg := loadConfig()
+	cfg := loadConfig(out)
 
 	// Create the new CmdCtx
-	cmdctx := ctl.NewCmdCtx(ctx, logger, cfg, os.Stderr)
+	cmdctx := ctl.NewCmdCtx(ctx, logger, cfg, out)
 
 	// Create the root command
 	cmd := commands.NewRootCmd(cmdctx)
@@ -38,6 +41,24 @@ func main() {
 		// based on that.
 		os.Exit(1)
 	}
+}
+
+func setUpLogger(out *output.Output) logging.Logger {
+	var (
+		logger logging.Logger
+		err    error
+	)
+	debug := os.Getenv("DEBUG")
+	if debug == "1" || strings.ToLower(debug) == "true" {
+		logger, err = logging.NewLogger(logging.Debug, false)
+	} else {
+		logger, err = logging.NewCLILogger(logging.Info)
+	}
+	if err != nil {
+		out.Inform(output.Error("failed to initialise the logger"))
+		os.Exit(1)
+	}
+	return logger
 }
 
 func createContext() (context.Context, func()) {
@@ -58,29 +79,11 @@ func createContext() (context.Context, func()) {
 	}
 }
 
-func setUpLogger() logging.Logger {
-	var (
-		logger logging.Logger
-		err    error
-	)
-	debug := os.Getenv("DEBUG")
-	if debug == "1" || strings.ToLower(debug) == "true" {
-		logger, err = logging.NewLogger(logging.Debug, false)
-	} else {
-		logger, err = logging.NewCLILogger(logging.Info)
-	}
-	if err != nil {
-		fmt.Println("Failed to initialise the logger")
-		os.Exit(1)
-	}
-	return logger
-}
-
-func loadConfig() *config.Config {
+func loadConfig(out *output.Output) *config.Config {
 	// Set up foldHome path
 	home, err := fs.FoldHome()
 	if err != nil {
-		fmt.Println("Failed to locate fold home directory at ~/.fold.")
+		out.Inform(output.Error("failed to locate fold home directory at ~/.fold."))
 		os.Exit(1)
 	}
 
@@ -91,11 +94,11 @@ func loadConfig() *config.Config {
 	} else {
 		var msg string
 		if errors.Is(err, config.CreateConfigError) {
-			msg = "Failed to create the default foldctl config.\nCheck you have permissions to write to ~/.fold/config.yaml"
+			msg = "failed to create the default foldctl config.\nCheck you have permissions to write to ~/.fold/config.yaml"
 		} else {
-			msg = "Failed to read the foldctl config file at ~/.fold/config.yaml.\nPlease ensure it is valid yaml."
+			msg = "failed to read the foldctl config file at ~/.fold/config.yaml.\nPlease ensure it is valid yaml."
 		}
-		fmt.Println(msg)
+		out.Inform(output.Error(msg))
 		os.Exit(1)
 	}
 	return nil

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/foldsh/fold/ctl"
@@ -46,24 +47,27 @@ func NewUpCmd(ctx *ctl.CmdCtx) *cobra.Command {
 		Example: exampleText,
 		Run: func(cmd *cobra.Command, args []string) {
 			// The current behaviour is that if no services are passed, we just start the network.
-			out := ctx.Output(output.WithPrefix(blue("docker: ")))
+			out := ctx.InformWriter(output.WithPrefix(output.Blue("docker: ")))
 			proj := loadProjectWithRuntime(ctx, out)
 			proj.ConfigureGatewayPort(port)
 
 			if services, err := proj.GetServices(args...); err == nil {
 				if err := proj.Up(ctx.Context, out, services...); err != nil {
-					exitWithErr(err)
+					ctx.Inform(output.Error(err.Error()))
+					os.Exit(1)
 				}
-				displayServiceSummary(port, services)
+				displayServiceSummary(ctx, port, services)
 				if !detach {
 					runInForeground(ctx, services)
 				}
 			} else {
 				var notAService project.NotAService
 				if errors.As(err, &notAService) {
-					exitWithErr(err)
+					ctx.Inform(output.Error(err.Error()))
+					os.Exit(1)
 				}
-				exitWithMessage(thisIsABug)
+				ctx.Inform(thisIsABug)
+				os.Exit(1)
 			}
 		},
 	}
@@ -82,7 +86,7 @@ func runInForeground(
 		chans = append(chans, c)
 		go func() {
 			ctx.Debugf("Listening to logs for service %s", service.Name)
-			out := ctx.Output(output.WithPrefix(fmt.Sprintf("%s: ", service.Name)))
+			out := ctx.DisplayWriter(output.WithPrefix(fmt.Sprintf("%s: ", service.Name)))
 			rc, err := service.Logs()
 			if err != nil {
 				// TODO output as error
@@ -115,34 +119,40 @@ func runInForeground(
 // I am just doing this in here for now as it's not that clear where
 // its natural home is and whether there is even any reason to have it
 // represented more formally.
-func displayServiceSummary(port int, services []*project.Service) {
+func displayServiceSummary(ctx *ctl.CmdCtx, port int, services []*project.Service) {
 	gatewayURL := fmt.Sprintf("http://localhost:%d", port)
-	print(fmt.Sprintf("\nFold gateway is available at %s", gatewayURL))
+	ctx.Informf("\nFold gateway is available at %s", gatewayURL)
 	for _, service := range services {
 		serviceURL := fmt.Sprintf("%s/%s", gatewayURL, service.Name)
-		waitForHealthz(serviceURL)
-		print("")
+		waitForHealthz(ctx, serviceURL)
+		ctx.Informf("")
 		resp, err := http.Get(fmt.Sprintf("%s/_foldadmin/manifest", serviceURL))
-		print("get manifest res: %v", resp)
-		exitIfErr(err)
+		ctx.Informf("get manifest res: %v", resp)
+		if err != nil {
+			ctx.Inform(output.Error(err.Error()))
+		}
 		defer resp.Body.Close()
 		m := &manifest.Manifest{}
 		err = manifest.ReadJSON(resp.Body, m)
-		exitIfErr(err)
-		print(fmt.Sprintf("    %s is available at %s", service.Name, serviceURL))
-		print(fmt.Sprintf("    %s routes:", service.Name))
+		if err != nil {
+			ctx.Inform(output.Error(err.Error()))
+		}
+		ctx.Informf("    %s is available at %s", service.Name, serviceURL)
+		ctx.Informf("    %s routes:", service.Name)
 		for _, route := range m.Routes {
-			print(fmt.Sprintf("        %s %s%s", route.HttpMethod, serviceURL, route.Route))
+			ctx.Informf("        %s %s%s", route.HttpMethod, serviceURL, route.Route)
 		}
 	}
 }
 
-func waitForHealthz(serviceURL string) {
+func waitForHealthz(ctx *ctl.CmdCtx, serviceURL string) {
 	var attempts int
 	healthz := fmt.Sprintf("%s/_foldadmin/healthz", serviceURL)
 	for {
 		if attempts >= 10 {
-			exitWithMessage("Service is not healthy, please check the container logs.")
+			ctx.Inform(output.Error("service is not healthy"))
+			ctx.Inform(output.Line("Please check the container logs."))
+			os.Exit(1)
 		}
 		resp, err := http.Get(healthz)
 		if resp != nil && err == nil {

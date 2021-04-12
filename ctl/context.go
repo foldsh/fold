@@ -2,7 +2,6 @@ package ctl
 
 import (
 	"context"
-	"io"
 
 	"github.com/foldsh/fold/ctl/config"
 	"github.com/foldsh/fold/ctl/output"
@@ -13,19 +12,19 @@ type CmdCtx struct {
 	context.Context
 	logging.Logger
 	*config.Config
-	*output.Multiplexer
+	*output.Output
 }
 
 func NewCmdCtx(
 	ctx context.Context,
 	logger logging.Logger,
 	cfg *config.Config,
-	out io.Writer,
+	out *output.Output,
 ) *CmdCtx {
 	return &CmdCtx{
-		Context:     ctx,
-		Config:      cfg,
-		Logger:      logger,
-		Multiplexer: output.NewMultiplexer(out),
+		Context: ctx,
+		Config:  cfg,
+		Logger:  logger,
+		Output:  out,
 	}
 }

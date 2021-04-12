@@ -12,7 +12,7 @@ import (
 func TestWithPrefix(t *testing.T) {
 	out := &testWriter{}
 	m := newMultiplexer(out)
-	o := m.Output(WithPrefix("TEST: "))
+	o := m.newWriter(WithPrefix("TEST: "))
 
 	writeBytesAndTestN(t, o, "this is line 1\nthis is line 2\rthis is")
 	writeBytesAndTestN(t, o, " line 3\nthis is line 4\n")
@@ -39,7 +39,7 @@ func TestConcurrentWrites(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func() {
-			o := m.Output(WithPrefix("TEST: "))
+			o := m.newWriter(WithPrefix("TEST: "))
 			writeBytesAndTestN(t, o, "first line\nsecond")
 			writeBytesAndTestN(t, o, " line\n")
 			wg.Done()

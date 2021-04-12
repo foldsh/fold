@@ -23,15 +23,6 @@ func NewRootCmd(ctx *ctl.CmdCtx) *cobra.Command {
 				ctx.Config.AccessToken = accessTokenOverride
 			}
 		},
-		PersistentPostRun: func(cmd *cobra.Command, _ []string) {
-			// All other successful commands print 'ok' in green at the end.
-			// We have one exception, which is 'version'. It's an exception so that
-			// the behaviour of it is identical to --version.
-			if cmd.CalledAs() == "version" {
-				return
-			}
-			print("%s", green("\nok"))
-		},
 	}
 	// Verbose/Debug output
 	cmd.SetVersionTemplate(`{{printf "foldctl %s\n" .Version}}`)

@@ -18,21 +18,21 @@ func newMultiplexer(output io.Writer) *multiplexer {
 	return &multiplexer{output: output, mu: &sync.Mutex{}}
 }
 
-func (m *multiplexer) Display(r Renderer) {
+func (m *multiplexer) render(r Renderer) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	fmt.Fprint(m.output, r.Render())
 }
 
-func (m *multiplexer) Output(options ...option) io.Writer {
-	out := &output{m: m}
+func (m *multiplexer) newWriter(options ...option) io.Writer {
+	w := &writer{m: m}
 	for _, o := range options {
-		o(out)
+		o(w)
 	}
-	return out
+	return w
 }
 
-type output struct {
+type writer struct {
 	m   *multiplexer
 	buf bytes.Buffer
 
@@ -44,7 +44,7 @@ type output struct {
 // Basically, we read the input a byte at a time, buffering it all.
 // When we encounter a new line, we flush the buffered input to the specified output.
 // We then carry on reading until we run out of input.
-func (out *output) Write(p []byte) (n int, err error) {
+func (out *writer) Write(p []byte) (n int, err error) {
 	for _, b := range p {
 		// Always write the byte as we want to write the new lines too.
 		// We can ignore the error here, the docs state it is always nil, this panics if something
@@ -52,7 +52,7 @@ func (out *output) Write(p []byte) (n int, err error) {
 		out.buf.WriteByte(b)
 		n += 1
 		if b == '\n' || b == '\r' {
-			out.m.Display(Line(fmt.Sprintf("%s%s", out.prefix, out.buf.String())))
+			out.m.render(Line(fmt.Sprintf("%s%s", out.prefix, out.buf.String())))
 			out.buf.Reset()
 			continue
 		}
@@ -60,10 +60,10 @@ func (out *output) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-type option func(*output)
+type option func(*writer)
 
 func WithPrefix(prefix string) option {
-	return func(out *output) {
-		out.prefix = prefix
+	return func(w *writer) {
+		w.prefix = prefix
 	}
 }

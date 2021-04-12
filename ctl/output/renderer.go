@@ -21,12 +21,12 @@ func (l Line) Render() string {
 type Success string
 
 func (s Success) Render() string {
-	return BoldGreen(s)
+	return fmt.Sprintf("\n%s", BoldGreen(s))
 }
 
 // This is for printing an error message. It makes the formatting consistent across commands.
 type Error string
 
 func (e Error) Render() string {
-	return fmt.Sprintf("%s%s", BoldRed("Error: "), Bold(e))
+	return fmt.Sprintf("\n%s%s", BoldRed("Error: "), Bold(e))
 }

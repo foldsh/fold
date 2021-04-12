@@ -2,6 +2,7 @@ package commands
 
 import (
 	"github.com/foldsh/fold/ctl"
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/spf13/cobra"
 )
 
@@ -36,11 +37,11 @@ func NewBuildCmd(ctx *ctl.CmdCtx) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			path := args[0]
 
-			out := newOut("docker: ")
+			out := ctx.InformWriter(output.WithPrefix(output.Blue("docker: ")))
 			p := loadProjectWithRuntime(ctx, out)
-			service := getService(p, path)
+			service := getService(ctx, p, path)
 			service.Build(ctx.Context, out)
-			// TODO exit with appropriate error message
+			ctx.Inform(output.Success("The service was successfully built"))
 		},
 	}
 }
