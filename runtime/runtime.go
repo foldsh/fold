@@ -1,6 +1,7 @@
 // Package runtime manages all of the components required to run a users application. It is
 // implemented as a state machine. This provides an easy way to manage the relationship between
 // the state of the underlying process and the behaviour of the runtime.
+
 package runtime
 
 import (
@@ -18,6 +19,7 @@ import (
 	"github.com/foldsh/fold/runtime/transport"
 )
 
+//go:generate mockery --config ../.mockery.yaml --name Supervisor
 type Supervisor interface {
 	Start(env map[string]string) error
 	Restart(env map[string]string) error
@@ -27,6 +29,7 @@ type Supervisor interface {
 	Signal(sig os.Signal) error
 }
 
+//go:generate mockery --config ../.mockery.yaml --name Client
 type Client interface {
 	Start(string) error
 	Stop() error
@@ -35,6 +38,7 @@ type Client interface {
 	DoRequest(context.Context, *transport.Request) (*transport.Response, error)
 }
 
+//go:generate mockery --config ../.mockery.yaml --name Router
 type Router interface {
 	http.Handler
 	Configure(*manifest.Manifest)

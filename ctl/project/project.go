@@ -125,7 +125,7 @@ func (p *Project) GetServices(paths ...string) ([]*Service, error) {
 }
 
 func (p *Project) Up(out io.Writer, services ...*Service) error {
-	p.ctx.Informf("Bringing up the fold development server for project %s...", p.Name)
+	p.ctx.InformHeader("Bringing up the fold development server for project %s...", p.Name)
 
 	// Ensure network
 	net := p.network()
@@ -133,7 +133,7 @@ func (p *Project) Up(out io.Writer, services ...*Service) error {
 	if err != nil {
 		return err
 	} else if !exists {
-		p.ctx.Informf("Creating the local network for project %s...", p.Name)
+		p.ctx.InformBody("Creating the local network for project %s...", p.Name)
 		if err := p.api.CreateNetwork(net); err != nil {
 			p.ctx.Logger.Debugf("Failed to create network for project %s: %v", p.Name, err)
 			return err
@@ -157,14 +157,17 @@ func (p *Project) Up(out io.Writer, services ...*Service) error {
 		}
 		if container != nil {
 			p.ctx.Informf("Service %s is already up, no need to do anything", service.Name)
+			service.container = container
 			continue
 		}
 		// Build the service
+		p.ctx.Informf("Building image for service %s...", service.Name)
 		img, err := service.Build(p.ctx.Context, out)
 		if err != nil {
 			return err
 		}
 		// Start the service
+		p.ctx.Informf("Starting service %s...", service.Name)
 		if err := service.Start(img, net); err != nil {
 			return err
 		}

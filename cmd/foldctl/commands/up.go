@@ -54,17 +54,21 @@ func NewUpCmd(ctx *ctl.CmdCtx) *cobra.Command {
 
 			if services, err := proj.GetServices(args...); err == nil {
 				if err := proj.Up(out, services...); err != nil {
-					ctx.Inform(output.Error(err.Error()))
+					ctx.InformError(err)
 					os.Exit(1)
 				}
 				displayServiceSummary(ctx, port, services)
 				if !detach {
 					runInForeground(ctx, services)
+					// When we run in the foreground then exiting should tear down the project.
+					if err := proj.Down(); err != nil {
+						ctx.InformError(err)
+					}
 				}
 			} else {
 				var notAService project.NotAService
 				if errors.As(err, &notAService) {
-					ctx.Inform(output.Error(err.Error()))
+					ctx.InformError(err)
 					os.Exit(1)
 				}
 				ctx.Inform(thisIsABug)
@@ -85,23 +89,20 @@ func runInForeground(
 
 	for _, service := range services {
 		go func() {
-			ctx.Logger.Debugf("Listening to logs for service %s", service.Name)
 			prefix := output.Blue(fmt.Sprintf("%s: ", service.Name))
 			out := ctx.DisplayWriter(output.WithPrefix(prefix))
 			ls, err := service.Logs()
 			if err != nil {
-				ctx.Inform(output.Error(err.Error()))
+				ctx.InformError(err)
 				return
 			}
 			streams = append(streams, ls)
 			if err := ls.Stream(out); err != nil {
-				ctx.Inform(output.Error(err.Error()))
 				return
 			}
 		}()
 	}
 	<-ctx.Done()
-	ctx.Logger.Debugf("SIGINT received by context")
 	for _, stream := range streams {
 		stream.Stop()
 	}
@@ -112,20 +113,22 @@ func runInForeground(
 // represented more formally.
 func displayServiceSummary(ctx *ctl.CmdCtx, port int, services []*project.Service) {
 	gatewayURL := fmt.Sprintf("http://localhost:%d", port)
-	ctx.Informf("\nFold gateway is available at %s", gatewayURL)
+	ctx.Inform(
+		output.Line(output.Bold(fmt.Sprintf("\nFold gateway is available at %s", gatewayURL))),
+	)
 	for _, service := range services {
 		serviceURL := fmt.Sprintf("%s/%s", gatewayURL, service.Name)
 		waitForHealthz(ctx, serviceURL)
 		ctx.Informf("")
 		resp, err := http.Get(fmt.Sprintf("%s/_foldadmin/manifest", serviceURL))
 		if err != nil {
-			ctx.Inform(output.Error(err.Error()))
+			ctx.InformError(err)
 		}
 		defer resp.Body.Close()
 		m := &manifest.Manifest{}
 		err = manifest.ReadJSON(resp.Body, m)
 		if err != nil {
-			ctx.Inform(output.Error(err.Error()))
+			ctx.InformError(err)
 		}
 		ctx.Informf("    %s is available at %s", service.Name, serviceURL)
 		ctx.Informf("    %s routes:", service.Name)

@@ -7,10 +7,12 @@
 package commands
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/container"
@@ -21,7 +23,7 @@ import (
 func projectHome(ctx *ctl.CmdCtx) string {
 	s, err := project.Home()
 	if err != nil {
-		ctx.Inform(output.Error(err.Error()))
+		ctx.InformError(err)
 		os.Exit(1)
 	}
 	return s
@@ -46,16 +48,17 @@ func loadProject(ctx *ctl.CmdCtx) *project.Project {
 	}
 	err = p.Validate()
 	if err != nil {
-		ctx.Inform(output.Error(err.Error()))
+		ctx.InformError(err)
 	}
 	return p
 }
 
 func loadProjectWithRuntime(ctx *ctl.CmdCtx, out io.Writer) *project.Project {
+	dockerTimeoutCtx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	p := loadProject(ctx)
-	rt, err := container.NewRuntime(ctx.Context, ctx.Logger, out)
+	rt, err := container.NewRuntime(dockerTimeoutCtx, ctx.Logger, out)
 	if err != nil {
-		ctx.Inform(output.Error(err.Error()))
+		ctx.InformError(err)
 	}
 	p.ConfigureContainerAPI(rt)
 	return p

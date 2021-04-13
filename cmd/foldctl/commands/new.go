@@ -83,7 +83,7 @@ func NewProjectCommand(ctx *ctl.CmdCtx) *cobra.Command {
 				projectName = filepath.Base(abs)
 				err = projectNameValidator(projectName)
 				if err != nil {
-					ctx.Inform(output.Error(err.Error()))
+					ctx.InformError(err)
 					os.Exit(1)
 				}
 				mkDir = true
@@ -244,7 +244,7 @@ func NewServiceCommand(ctx *ctl.CmdCtx) *cobra.Command {
 func runSelect(ctx *ctl.CmdCtx, label string, items []string) string {
 	value, err := ctx.Select(label, items)
 	if err != nil {
-		ctx.Inform(output.Error(err.Error()))
+		ctx.InformError(err)
 		os.Exit(1)
 	}
 	return value
@@ -253,7 +253,7 @@ func runSelect(ctx *ctl.CmdCtx, label string, items []string) string {
 func runPrompt(ctx *ctl.CmdCtx, label string, validator func(string) error) string {
 	value, err := ctx.Prompt(label, validator)
 	if err != nil {
-		ctx.Inform(output.Error(err.Error()))
+		ctx.InformError(err)
 		os.Exit(1)
 	}
 	return value
@@ -295,7 +295,7 @@ func updateTemplates(ctx *ctl.CmdCtx) {
 	out := ctx.InformWriter(output.WithPrefix(output.Blue("git: ")))
 	err := git.UpdateTemplates(out, ctx.Config.FoldTemplates, version.FoldVersion.String())
 	if err != nil {
-		ctx.Inform(output.Error(err.Error()))
+		ctx.InformError(err)
 		os.Exit(1)
 	}
 }

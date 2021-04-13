@@ -64,6 +64,19 @@ func (o *Output) InformWriter(options ...option) io.Writer {
 	return o.err.newWriter(options...)
 }
 
+// This is just a short cut for a frequent pattern.
+func (o *Output) InformError(err error) {
+	o.Inform(Error(err.Error()))
+}
+
+func (o *Output) InformHeader(f string, args ...interface{}) {
+	o.Inform(Line(Bold(fmt.Sprintf(f, args...))))
+}
+
+func (o *Output) InformBody(f string, args ...interface{}) {
+	o.Inform(Line(fmt.Sprintf(fmt.Sprintf("    %s", f), args)))
+}
+
 func newLine(m *multiplexer) {
 	m.render(Line("\n"))
 }

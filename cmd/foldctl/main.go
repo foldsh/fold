@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -23,7 +24,7 @@ func main() {
 	logger := setUpLogger(out)
 
 	// Create the Context and listen for an interrupt
-	ctx, cleanup := createContext()
+	ctx, cleanup := createContext(out)
 	defer cleanup()
 
 	// Load the CLI config
@@ -37,9 +38,7 @@ func main() {
 
 	// And execute it
 	if err := cmd.Execute(); err != nil {
-		// TODO could be good to look at error types and choose behaviour
-		// based on that.
-		os.Exit(1)
+		out.Inform(output.Error(err.Error()))
 	}
 }
 
@@ -61,13 +60,14 @@ func setUpLogger(out *output.Output) logging.Logger {
 	return logger
 }
 
-func createContext() (context.Context, func()) {
+func createContext(out *output.Output) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 	go func() {
 		select {
 		case <-sigChan:
+			out.Informf(fmt.Sprintf("\n%s", output.Bold("SIGINT received")))
 			cancel()
 		case <-ctx.Done():
 			return
