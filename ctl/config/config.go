@@ -1,37 +1,29 @@
-// Utilities for loading foldctl config with viper.
-// This is distinct from the fold project config!
-package commands
+package config
 
 import (
 	"errors"
 	"fmt"
 	"os"
 
-	"github.com/spf13/viper"
-
-	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/fs"
 	"github.com/foldsh/fold/version"
+	"github.com/spf13/viper"
 )
 
 var (
-	foldHome      string
-	foldBin       string
-	foldTemplates string
-
-	couldNotCreateDefaultConfig = errors.New("failed to create the default foldctl config file")
-	couldNotReadConfigFile      = errors.New("failed to read the foldctl config file")
+	CreateConfigError = errors.New("failed to create the default foldctl config file")
+	ReadConfigError   = errors.New("failed to read the foldctl config file")
 )
 
-func init() {
-	home, err := fs.FoldHome()
-	exitIfErr(err, "Failed to locate fold home directory at ~/.fold.")
-	foldHome = home
-	foldBin = fs.FoldBin(foldHome)
-	foldTemplates = fs.FoldTemplates(foldHome)
+type Config struct {
+	AccessToken string `mapstructure:"access-token"`
+	Version     string `mapstructure:"version"`
+
+	FoldHome      string
+	FoldTemplates string
 }
 
-func loadConfigAtPath(path string) error {
+func Load(path string) (*Config, error) {
 	viper.AutomaticEnv()
 	viper.AddConfigPath(path)
 	viper.SetConfigName("config")
@@ -50,26 +42,22 @@ func loadConfigAtPath(path string) error {
 			err = writeDefaultConfig(path)
 			if err != nil {
 				// Creating the config failed, so we bail and return an error.
-				return couldNotCreateDefaultConfig
+				return nil, CreateConfigError
 			}
 			// We successfully wrote the default config, so lets try to load it.
 			continue
 		} else {
 			// There was some other error, likely the config file was malformed.
 			// Bail and return the error.
-			return couldNotReadConfigFile
+			return nil, ReadConfigError
 		}
 	}
-	return nil
-}
-
-func makeFoldConfig() (ctl.Config, error) {
-	var cfg ctl.Config
-	err := viper.Unmarshal(&cfg)
-	if err != nil {
-		return cfg, errors.New("failed to unmarshal the foldctl config file ")
-	}
-	return cfg, nil
+	return &Config{
+		AccessToken:   viper.GetString("access-token"),
+		Version:       viper.GetString("version"),
+		FoldHome:      path,
+		FoldTemplates: fs.FoldTemplates(path),
+	}, nil
 }
 
 func writeDefaultConfig(path string) error {
@@ -81,10 +69,8 @@ func writeDefaultConfig(path string) error {
 	writer.AddConfigPath(path)
 	writer.SetConfigName("config")
 	writer.SetConfigType("yaml")
-	writer.Set("version", version.FoldVersion.String())
-	writer.Set("name", "")
-	writer.Set("email", "")
 	writer.Set("access-token", "")
+	writer.Set("version", version.FoldVersion.String())
 	err := writer.SafeWriteConfig()
 	if err != nil {
 		return err

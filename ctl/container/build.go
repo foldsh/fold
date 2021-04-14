@@ -43,7 +43,6 @@ func (spec *Image) ignoreFilePatterns() []string {
 }
 
 func (cr *ContainerRuntime) PullImage(name string) (*Image, error) {
-	cr.logger.Infof("Pulling image %s", name)
 	rc, err := cr.cli.ImagePull(cr.ctx, name, types.ImagePullOptions{})
 	if err != nil {
 		return nil, FailedToPullImage
@@ -57,7 +56,6 @@ func (cr *ContainerRuntime) PullImage(name string) (*Image, error) {
 		cr.logger.Debugf("failed to pull image %v", err)
 		return nil, FailedToPullImage
 	}
-	cr.logger.Infof("Successfully pulled image %s", name)
 	img, err := cr.GetImage(name)
 	if err != nil {
 		return nil, err

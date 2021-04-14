@@ -1,7 +1,6 @@
 package project
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,9 +8,10 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/container"
 	"github.com/foldsh/fold/ctl/gateway"
-	"github.com/foldsh/fold/logging"
+	"github.com/foldsh/fold/ctl/output"
 )
 
 var (
@@ -30,12 +30,12 @@ type Project struct {
 	Services   []*Service
 
 	gatewayPort int
-	logger      logging.Logger
+	ctx         *ctl.CmdCtx
 	api         ContainerAPI
 }
 
-func Load(logger logging.Logger, projectPath string) (*Project, error) {
-	return load(logger, projectPath)
+func Load(ctx *ctl.CmdCtx, projectPath string) (*Project, error) {
+	return load(ctx, projectPath)
 }
 
 func Home() (string, error) {
@@ -67,12 +67,12 @@ func (p *Project) ConfigureContainerAPI(b ContainerAPI) {
 	p.api = b
 }
 
-func (p *Project) ConfigureLogger(l logging.Logger) {
-	p.logger = l
+func (p *Project) ConfigureCmdCtx(ctx *ctl.CmdCtx) {
+	p.ctx = ctx
 }
 
 func (p *Project) NewService(name string) *Service {
-	return &Service{Name: name, project: p}
+	return &Service{Name: name, project: p, ctx: p.ctx}
 }
 
 func (p *Project) Validate() error {
@@ -101,13 +101,13 @@ func (p *Project) AddService(svc Service) {
 // This works with either a path to a service or just a service name.
 func (p *Project) GetService(path string) (*Service, error) {
 	name := filepath.Clean(path)
-	p.logger.Debugf("fetching service for path %s", name)
+	p.ctx.Logger.Debugf("fetching service for path %s", name)
 	for _, svc := range p.Services {
 		if svc.Name == name {
 			return svc, nil
 		}
 	}
-	p.logger.Debugf("no service found for path %s", name)
+	p.ctx.Logger.Debugf("no service found for path %s", name)
 	return nil, NotAService{path}
 }
 
@@ -124,8 +124,8 @@ func (p *Project) GetServices(paths ...string) ([]*Service, error) {
 	return services, nil
 }
 
-func (p *Project) Up(ctx context.Context, out io.Writer, services ...*Service) error {
-	p.logger.Infof("Bringing up the fold development server for project %s...", p.Name)
+func (p *Project) Up(out io.Writer, services ...*Service) error {
+	p.ctx.InformHeader("Bringing up the fold development server for project %s...", p.Name)
 
 	// Ensure network
 	net := p.network()
@@ -133,9 +133,9 @@ func (p *Project) Up(ctx context.Context, out io.Writer, services ...*Service) e
 	if err != nil {
 		return err
 	} else if !exists {
-		p.logger.Infof("Creating the local network for project %s...", p.Name)
+		p.ctx.InformBody("Creating the local network for project %s...", p.Name)
 		if err := p.api.CreateNetwork(net); err != nil {
-			p.logger.Debugf("Failed to create network for project %s: %v", p.Name, err)
+			p.ctx.Logger.Debugf("Failed to create network for project %s: %v", p.Name, err)
 			return err
 		}
 	}
@@ -145,36 +145,39 @@ func (p *Project) Up(ctx context.Context, out io.Writer, services ...*Service) e
 
 	// Bring up services
 	for _, service := range services {
-		p.logger.Infof("Starting container for service %s...", service.Name)
+		p.ctx.Informf("Starting container for service %s...", service.Name)
 		// Check if the service is already up.
 		container, err := p.api.GetContainer(service.containerName())
 		if err != nil {
-			p.logger.Debugf(
+			p.ctx.Logger.Debugf(
 				"Failed to check if container for service %s already exists",
 				service.Name,
 			)
 			return err
 		}
 		if container != nil {
-			p.logger.Infof("Service %s is already up, no need to do anything", service.Name)
+			p.ctx.Informf("Service %s is already up, no need to do anything", service.Name)
+			service.container = container
 			continue
 		}
 		// Build the service
-		img, err := service.Build(ctx, out)
+		p.ctx.Informf("Building image for service %s...", service.Name)
+		img, err := service.Build(p.ctx.Context, out)
 		if err != nil {
 			return err
 		}
 		// Start the service
+		p.ctx.Informf("Starting service %s...", service.Name)
 		if err := service.Start(img, net); err != nil {
 			return err
 		}
 	}
-	p.logger.Infof("The fold development server is now ready")
+	p.ctx.Informf("The fold development server is now ready")
 	return nil
 }
 
 func (p *Project) Down() error {
-	p.logger.Infof("Taking down the fold development server for project %s...", p.Name)
+	p.ctx.Informf("Taking down the fold development server for project %s...", p.Name)
 
 	// Take down services - doing this first ensures that we remove fold containers even
 	// if the user has done something like delete the network manually.
@@ -192,20 +195,21 @@ func (p *Project) Down() error {
 	// Determine if we need to take down the network.
 	net := p.network()
 	exists, err := p.api.NetworkExists(net)
+	p.ctx.Informf("checking network exists %v %v", exists, err)
 	if err != nil {
 		return err
 	} else if !exists {
-		p.logger.Infof("Local network for project %s is not up, nothing to do.", p.Name)
+		p.ctx.Informf("Local network for project %s is not up, nothing to do.", p.Name)
 		return nil
 	}
 	// It exists, so remove it.
-	p.logger.Infof("Taking down the local network for project %s...", p.Name)
+	p.ctx.Informf("Taking down the local network for project %s...", p.Name)
 	if err = p.api.RemoveNetwork(net); err != nil {
-		p.logger.Debugf("failed to remove network for project %s: %v", p.Name, err)
+		p.ctx.Logger.Debugf("failed to remove network for project %s: %v", p.Name, err)
 		return err
 	}
 
-	p.logger.Infof("The fold development server has been taken down successfully")
+	p.ctx.Inform(output.Success("The fold development server has been taken down successfully"))
 	return nil
 }
 
@@ -220,17 +224,17 @@ func (p *Project) gateway() *gateway.Gateway {
 
 func (p *Project) startGateway(net *container.Network) error {
 	gw := p.gateway()
-	p.logger.Infof("Starting fold local gateway on port %d...", gw.Port)
+	p.ctx.Informf("Starting fold local gateway on port %d...", gw.Port)
 	if con, err := p.isGatewayUp(gw); err != nil {
 		return err
 	} else if con != nil {
-		p.logger.Infof("Gateway is already up, nothing to do.")
+		p.ctx.Informf("Gateway is already up, nothing to do.")
 		return nil
 	}
 	imgName := gw.ImageName()
 	img, err := p.pullImageIfRequired(imgName)
 	if err != nil {
-		p.logger.Debugf("failed to pull the image for the gateway: %v", err)
+		p.ctx.Logger.Debugf("failed to pull the image for the gateway: %v", err)
 		return fmt.Errorf("failed to pull image %s", imgName)
 	}
 	gwService := p.gatewayService(gw)
@@ -242,17 +246,17 @@ func (p *Project) startGateway(net *container.Network) error {
 }
 
 func (p *Project) stopGateway() error {
-	p.logger.Infof("Stopping fold local gateway...")
+	p.ctx.Informf("Stopping fold local gateway...")
 	gw := p.gateway()
 	if con, err := p.isGatewayUp(gw); err != nil {
-		p.logger.Debugf("Failed to confirm if gateway is running: %v", err)
+		p.ctx.Logger.Debugf("Failed to confirm if gateway is running: %v", err)
 		return err
 	} else if con == nil {
-		p.logger.Infof("Gateway is not up, nothing to do.")
+		p.ctx.Informf("Gateway is not up, nothing to do.")
 		return nil
 	} else {
 		if err := p.api.StopContainer(con); err != nil {
-			p.logger.Debugf("Failed to stop the gateway: %v", err)
+			p.ctx.Logger.Debugf("Failed to stop the gateway: %v", err)
 			return err
 		}
 	}
@@ -260,11 +264,11 @@ func (p *Project) stopGateway() error {
 }
 
 func (p *Project) isGatewayUp(gw *gateway.Gateway) (*container.Container, error) {
-	p.logger.Debugf("Checking if gateway is running")
+	p.ctx.Logger.Debugf("Checking if gateway is running")
 	svc := p.gatewayService(gw)
 	con, err := p.api.GetContainer(svc.containerName())
 	if err != nil {
-		p.logger.Debugf("Failed to check if gateway is already up: %v", err)
+		p.ctx.Logger.Debugf("Failed to check if gateway is already up: %v", err)
 		return nil, err
 	}
 	if con == nil {
@@ -285,10 +289,10 @@ func (p *Project) pullImageIfRequired(image string) (*container.Image, error) {
 		return nil, err
 	}
 	if img != nil {
-		p.logger.Debugf("Image %s already available locally, nothing to do.", image)
+		p.ctx.Logger.Debugf("Image %s already available locally, nothing to do.", image)
 		return img, nil
 	}
-	p.logger.Debugf("Pulling image %s", image)
+	p.ctx.Logger.Debugf("Pulling image %s", image)
 	img, err = p.api.PullImage(image)
 	return img, nil
 }

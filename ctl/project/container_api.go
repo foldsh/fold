@@ -23,4 +23,5 @@ type ContainerAPI interface {
 	GetContainer(name string) (*container.Container, error)
 	RunContainer(net *container.Network, con *container.Container) error
 	StopContainer(con *container.Container) error
+	ContainerLogs(con *container.Container) (*container.LogStream, error)
 }

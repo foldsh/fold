@@ -10,19 +10,23 @@ import (
 )
 
 func NewRuntime(
-	ctx context.Context, logger logging.Logger, out io.Writer,
+	ctx context.Context,
+	logger logging.Logger,
+	out io.Writer,
+	fs FileSystem,
+	client DockerClient,
 ) (*ContainerRuntime, error) {
-	client, err := newDockerClient(logger)
-	if err != nil {
-		return nil, err
-	}
 	return &ContainerRuntime{
 		cli:    client,
 		ctx:    ctx,
 		logger: logger,
 		out:    out,
-		fs:     osFileSystem{},
+		fs:     fs,
 	}, nil
+}
+
+type FileSystem interface {
+	MkdirAll(path string, perm os.FileMode) error
 }
 
 type ContainerRuntime struct {
@@ -30,14 +34,14 @@ type ContainerRuntime struct {
 	ctx    context.Context
 	logger logging.Logger
 	out    io.Writer
-	fs     fileSystem
+	fs     FileSystem
 }
 
 func (cr *ContainerRuntime) Context() context.Context {
 	return cr.ctx
 }
 
-func newDockerClient(logger logging.Logger) (DockerClient, error) {
+func NewDockerClient(logger logging.Logger) (DockerClient, error) {
 	client, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		logger.Debugf("failed to initialised docker client")
@@ -46,12 +50,12 @@ func newDockerClient(logger logging.Logger) (DockerClient, error) {
 	return client, nil
 }
 
-type fileSystem interface {
-	mkdirAll(path string, perm os.FileMode) error
+func NewOSFileSystem() FileSystem {
+	return osFileSystem{}
 }
 
 type osFileSystem struct{}
 
-func (fs osFileSystem) mkdirAll(path string, perm os.FileMode) error {
+func (fs osFileSystem) MkdirAll(path string, perm os.FileMode) error {
 	return os.MkdirAll(path, perm)
 }

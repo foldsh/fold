@@ -1,4 +1,4 @@
-package container
+package container_test
 
 import (
 	"errors"
@@ -8,73 +8,72 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/foldsh/fold/internal/testutils"
-	gomock "github.com/golang/mock/gomock"
+	dockerContainer "github.com/docker/docker/api/types/container"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/foldsh/fold/ctl/container"
 )
 
 func TestPullImage(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	fs := &mockFileSystem{}
-	rt := mockRuntime(dc, fs)
+	rt, dc, fs := setup()
 
 	imgName := "fold/img:tag"
-	dc.
-		EXPECT().
-		ImagePull(gomock.Any(), imgName, types.ImagePullOptions{}).
-		Return(ioutil.NopCloser(strings.NewReader("")), nil)
-	dc.
-		EXPECT().
-		ImageList(gomock.Any(), gomock.Any()).
-		Return([]types.ImageSummary{{ID: "1234", RepoTags: []string{imgName}}}, nil)
-	dc.
-		EXPECT().
-		ImageInspectWithRaw(gomock.Any(), "1234").
-		Return(
-			types.ImageInspect{ID: "1234", Config: &container.Config{WorkingDir: "/fold"}},
-			nil,
-			nil,
-		)
+
+	dc.On(
+		"ImagePull",
+		mock.Anything,
+		imgName,
+		types.ImagePullOptions{},
+	).Return(
+		ioutil.NopCloser(strings.NewReader("")),
+		nil,
+	)
+	dc.On(
+		"ImageList",
+		mock.Anything,
+		mock.Anything,
+	).Return(
+		[]types.ImageSummary{{ID: "1234", RepoTags: []string{imgName}}},
+		nil,
+	)
+	dc.On("ImageInspectWithRaw", mock.Anything, "1234").Return(
+		types.ImageInspect{ID: "1234", Config: &dockerContainer.Config{WorkingDir: "/fold"}},
+		nil,
+		nil,
+	)
 
 	img, err := rt.PullImage(imgName)
-	if err != nil {
-		t.Errorf("Expected error to be nil but found %v", err)
-	}
-	expectation := Image{ID: "1234", Name: imgName, WorkDir: "/fold"}
-	if *img != expectation {
-		t.Errorf("Expected %v but found %v", expectation, img)
-	}
+	dc.AssertExpectations(t)
+	fs.AssertExpectations(t)
+	assert.Nil(t, err)
+	expectation := container.Image{ID: "1234", Name: imgName, WorkDir: "/fold"}
+	assert.Equal(t, expectation, *img)
 }
 
 func TestPullImageFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	fs := &mockFileSystem{}
-	rt := mockRuntime(dc, fs)
+	rt, dc, _ := setup()
 
 	imgName := "test/img:tag"
-	dc.
-		EXPECT().
-		ImagePull(gomock.Any(), imgName, types.ImagePullOptions{}).
-		Return(nil, errors.New("an error"))
+	dc.On(
+		"ImagePull",
+		mock.Anything,
+		imgName,
+		types.ImagePullOptions{},
+	).Return(
+		nil,
+		errors.New("an error"),
+	)
 
 	_, err := rt.PullImage(imgName)
-	if !errors.Is(err, FailedToPullImage) {
-		t.Errorf("Expected FailedToPullImage but found %v", err)
-	}
+	assert.ErrorIs(t, err, container.FailedToPullImage)
+	dc.AssertExpectations(t)
 }
 
 func TestBuildImage(t *testing.T) {
 	// TODO this is pretty rubbish, there is a lot of stuff outside of using the docker
 	// API in here.
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	fs := &mockFileSystem{}
-	rt := mockRuntime(dc, fs)
+	rt, dc, _ := setup()
 
 	// Set up temp dir
 	workDir, err := ioutil.TempDir("", "test-fold-image-build")
@@ -83,48 +82,46 @@ func TestBuildImage(t *testing.T) {
 	}
 
 	imgName := "fold/img:tag"
-	dc.
-		EXPECT().
-		ImageBuild(
-			gomock.Any(),
-			gomock.Any(),
-			types.ImageBuildOptions{Tags: []string{imgName}},
-		).
-		Return(types.ImageBuildResponse{Body: ioutil.NopCloser(strings.NewReader(""))}, nil)
-	dc.
-		EXPECT().
-		ImageList(gomock.Any(), gomock.Any()).
-		Return([]types.ImageSummary{{ID: "1234", RepoTags: []string{imgName}}}, nil)
-	dc.
-		EXPECT().
-		ImageInspectWithRaw(gomock.Any(), "1234").
-		Return(
-			types.ImageInspect{ID: "1234", Config: &container.Config{WorkingDir: "/fold"}},
-			nil,
-			nil,
-		)
-	img := &Image{Name: imgName, Src: workDir}
+	dc.On(
+		"ImageBuild",
+		mock.Anything,
+		mock.Anything,
+		types.ImageBuildOptions{Tags: []string{imgName}},
+	).Return(
+		types.ImageBuildResponse{Body: ioutil.NopCloser(strings.NewReader(""))},
+		nil,
+	)
+	dc.On(
+		"ImageList",
+		mock.Anything,
+		mock.Anything,
+	).Return(
+		[]types.ImageSummary{{ID: "1234", RepoTags: []string{imgName}}},
+		nil,
+	)
+	dc.On(
+		"ImageInspectWithRaw",
+		mock.Anything,
+		"1234",
+	).Return(
+		types.ImageInspect{ID: "1234", Config: &dockerContainer.Config{WorkingDir: "/fold"}},
+		nil,
+		nil,
+	)
+	img := &container.Image{Name: imgName, Src: workDir}
 	rt.BuildImage(img)
-	if img.ID != "1234" {
-		t.Errorf("Expected id to be 1234 but found %s", img.ID)
-	}
-	if img.WorkDir != "/fold" {
-		t.Errorf("Expected id to be /fold but found %s", img.WorkDir)
-	}
+	assert.Equal(t, "1234", img.ID)
+	assert.Equal(t, "/fold", img.WorkDir)
+	dc.AssertExpectations(t)
 }
 
 func TestListImages(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	fs := &mockFileSystem{}
-	rt := mockRuntime(dc, fs)
+	rt, dc, _ := setup()
 
 	dc.
-		EXPECT().
-		ImageList(
-			gomock.Any(),
-			gomock.Any(),
+		On("ImageList",
+			mock.Anything,
+			mock.Anything,
 		).
 		Return([]types.ImageSummary{
 			{ID: "0", RepoTags: []string{"foldsh/foo", "bar"}},
@@ -137,19 +134,19 @@ func TestListImages(t *testing.T) {
 	for i, _ := range expectedTags {
 		id := fmt.Sprintf("%d", i)
 		dc.
-			EXPECT().
-			ImageInspectWithRaw(gomock.Any(), id).
+			On("ImageInspectWithRaw", mock.Anything, id).
 			Return(
-				types.ImageInspect{ID: id, Config: &container.Config{WorkingDir: "/fold"}},
+				types.ImageInspect{ID: id, Config: &dockerContainer.Config{WorkingDir: "/fold"}},
 				nil,
 				nil,
 			)
 	}
 	imgs, _ := rt.ListImages()
-	expectation := []*Image{
+	expectation := []*container.Image{
 		{ID: "0", WorkDir: "/fold", Name: "foldsh/foo"},
 		{ID: "1", WorkDir: "/fold", Name: "foldsh/bar"},
 		{ID: "2", WorkDir: "/fold", Name: "foldlocal.abcde.foo"},
 	}
-	testutils.Diff(t, expectation, imgs, "Images should match expectation")
+	assert.Equal(t, expectation, imgs)
+	dc.AssertExpectations(t)
 }

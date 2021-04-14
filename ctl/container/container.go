@@ -3,6 +3,7 @@ package container
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"unicode/utf8"
 
@@ -10,7 +11,9 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
+
 	"github.com/foldsh/fold/ctl/fs"
 )
 
@@ -23,6 +26,7 @@ var (
 	FailedToStopContainer              = errors.New("failed to stop the container")
 	FailedToRemoveContainer            = errors.New("failed to remove the container")
 	FailedToBindVolume                 = errors.New("failed to bind container volume")
+	FailedToReadLogs                   = errors.New("failed to read container logs")
 
 	foldPrefix = "fold."
 )
@@ -83,7 +87,9 @@ func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
 	}
 	var mounts []mount.Mount
 	for _, m := range con.Mounts {
-		err := cr.fs.mkdirAll(m.Src, fs.DIR_PERMISSIONS)
+		err := cr.fs.MkdirAll(m.Src, fs.DIR_PERMISSIONS)
+
+		cr.logger.Debug(err)
 		if err != nil {
 			return FailedToBindVolume
 		}
@@ -193,4 +199,30 @@ func (cr *ContainerRuntime) listContainers() ([]*Container, error) {
 		}
 	}
 	return foldContainers, nil
+}
+
+func (cr *ContainerRuntime) ContainerLogs(con *Container) (*LogStream, error) {
+	cr.logger.Debugf("Trailing logs for container %s", con.ID)
+	rc, err := cr.cli.ContainerLogs(cr.ctx, con.ID, types.ContainerLogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Follow:     true,
+	})
+	if err != nil {
+		return nil, FailedToReadLogs
+	}
+	return &LogStream{rc}, nil
+}
+
+type LogStream struct {
+	rc io.ReadCloser
+}
+
+func (ls *LogStream) Stream(w io.Writer) error {
+	_, err := stdcopy.StdCopy(w, w, ls.rc)
+	return err
+}
+
+func (ls *LogStream) Stop() error {
+	return ls.rc.Close()
 }

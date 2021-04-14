@@ -57,6 +57,18 @@ func proxy(c *gin.Context) error {
 					),
 				),
 			)
+		} else {
+			w.WriteHeader(502)
+			w.Write(
+				[]byte(
+					fmt.Sprintf(
+						`{"title":"%s","service-name":"%s","detail":"%s"}`,
+						"Bad Gateway",
+						service,
+						"Something went wrong...",
+					),
+				),
+			)
 		}
 	}
 

@@ -1,18 +1,13 @@
 package commands
 
 import (
+	"github.com/foldsh/fold/ctl"
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(buildCmd)
-}
-
-var buildCmd = &cobra.Command{
-	Use:     "build [service]",
-	Example: "foldctl build ./service/",
-	Short:   "Builds the specified service",
-	Long: `Build the service located at the path you provide.
+var (
+	long = `Build the service located at the path you provide.
 In order for a directory to be a valid service, it just needs a Dockerfile that implements
 the fold runtime interface.
 
@@ -29,15 +24,24 @@ projects.
 When you go on to deploy a service, the image will be given a tag that is tied to the specific
 version of the code that built it, ensuring you can roll services back, forward, promote images
 between stages, etc. Additionally, rather than using the name of the directory, the name used
-will be extracted from the service manifest, and will match the service path on your gateway.`,
-	Args: cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		path := args[0]
+will be extracted from the service manifest, and will match the service path on your gateway.`
+)
 
-		out := newOut("docker: ")
-		p := loadProjectWithRuntime(out)
-		service := getService(p, path)
-		service.Build(commandCtx, out)
-		// TODO exit with appropriate error message
-	},
+func NewBuildCmd(ctx *ctl.CmdCtx) *cobra.Command {
+	return &cobra.Command{
+		Use:     "build [service]",
+		Example: "foldctl build ./service/",
+		Short:   "Builds the specified service",
+		Long:    long,
+		Args:    cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			path := args[0]
+
+			out := ctx.InformWriter(output.WithPrefix(output.Blue("docker: ")))
+			p := loadProjectWithRuntime(ctx, out)
+			service := getService(ctx, p, path)
+			service.Build(ctx.Context, out)
+			ctx.Inform(output.Success("The service was successfully built"))
+		},
+	}
 }

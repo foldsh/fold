@@ -61,13 +61,13 @@ func (fr *Router) Configure(m *manifest.Manifest) {
 		"GET",
 		"/_foldadmin/manifest",
 		func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+			// If successful Write implicity sets the 200 response on the ResponseWriter
 			err := manifest.WriteJSON(w, fr.manifest)
 			if err != nil {
 				w.WriteHeader(500)
 				w.Write([]byte(`{"title":"Failed to marshal manifest to JSON"}`))
 				return
 			}
-			w.WriteHeader(200)
 		},
 	)
 	// And now register all of the routes from the manifest.

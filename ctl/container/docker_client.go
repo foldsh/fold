@@ -95,4 +95,10 @@ type DockerClient interface {
 		ctx context.Context,
 		options types.ContainerListOptions,
 	) ([]types.Container, error)
+
+	ContainerLogs(
+		ctx context.Context,
+		container string,
+		options types.ContainerLogsOptions,
+	) (io.ReadCloser, error)
 }

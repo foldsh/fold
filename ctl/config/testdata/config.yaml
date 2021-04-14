@@ -1,4 +1,2 @@
 version: 1.2.3
-name: John Smith
-email: test@test.com
 access-token: ABCDEF123456

@@ -5,6 +5,10 @@ install:
 	go install ./...
 .PHONY: install
 
+test:
+	go generate ./... && go test ./...
+.PHONY: test
+
 version:
 	@echo $(shell go run ./cmd/version)
 .PHONY: version
@@ -54,17 +58,6 @@ protoc:
 		proto/manifest.proto proto/http.proto
 .PHONY: protoc
 
-genmocks:
-	mockgen -source=ctl/container/docker_client.go \
-		-destination=ctl/container/mock_docker_client.go \
-		-package container
-	mockgen -source=ctl/project/container_api.go \
-		-destination=ctl/project/mock_container_api_test.go \
-		-package project_test
-	mockgen -source=runtime/runtime.go \
-		-destination=runtime/runtime_mocks_test.go \
-		-package runtime_test
-
 bin:
 	mkdir -p bin
 
@@ -77,5 +70,9 @@ install-gotools:
 	cd .gotools && if [[ ! -f go.mod ]]; then \
 		go mod init fold-tools ; \
 	fi
-	cd .gotools && go get -v github.com/golang/mock/mockgen@v1.5.0 github.com/mitchellh/gox github.com/mitchellh/gon
+	cd .gotools && go get -v \
+		github.com/golang/mock/mockgen@v1.5.0 \
+		github.com/mitchellh/gox \
+		github.com/mitchellh/gon \
+		github.com/vektra/mockery/v2/.../
 .PHONY: gotools

@@ -20,7 +20,7 @@ func TestCloneTemplates(t *testing.T) {
 
 	out := &bytes.Buffer{}
 	// The first time it should clone
-	err = git.UpdateTemplates(out, templatesDir)
+	err = git.UpdateTemplates(out, templatesDir, "v0.1.2")
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}
@@ -30,7 +30,7 @@ func TestCloneTemplates(t *testing.T) {
 	}
 
 	// The second time it should just update without error.
-	err = git.UpdateTemplates(out, templatesDir)
+	err = git.UpdateTemplates(out, templatesDir, "v0.1.2")
 	if err != nil {
 		t.Fatalf("%+v", err)
 	}

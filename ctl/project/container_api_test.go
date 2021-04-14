@@ -6,11 +6,18 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/foldsh/fold/ctl"
+	"github.com/foldsh/fold/ctl/config"
 	"github.com/foldsh/fold/ctl/container"
 	"github.com/foldsh/fold/ctl/gateway"
+	"github.com/foldsh/fold/ctl/mocks"
+	"github.com/foldsh/fold/ctl/output"
 	"github.com/foldsh/fold/ctl/project"
 	"github.com/foldsh/fold/logging"
-	"github.com/golang/mock/gomock"
 )
 
 var workflowTests = []struct {
@@ -31,31 +38,25 @@ var workflowTests = []struct {
 // project 'lifecycle'. I.e. we bring up all the services, one by one
 // and then bring it down. This should result in a consistent pattern
 // of calls to the container api, which we will make assertions about.
-func TestProjectWorkflow(t *testing.T) {
+func TestProjectUp(t *testing.T) {
 	for _, tc := range workflowTests {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-		api := NewMockContainerAPI(ctrl)
-
+		api := &mocks.ContainerAPI{}
 		proj := tc.project
 		proj.ConfigureContainerAPI(api)
-		proj.ConfigureLogger(logging.NewTestLogger())
 		t.Run(tc.project.Name, func(t *testing.T) {
 			out := new(bytes.Buffer)
 			netName := fmt.Sprintf("foldnet-%s", proj.Name)
 			net := &container.Network{Name: netName}
 			// Should set up network
 			api.
-				EXPECT().
-				NewNetwork(netName).
+				On("NewNetwork", netName).
 				Return(net)
 			api.
-				EXPECT().
-				NetworkExists(net).
+				On("NetworkExists", net).
 				Return(false, nil)
 			api.
-				EXPECT().
-				CreateNetwork(net)
+				On("CreateNetwork", net).
+				Return(nil)
 
 			// Should start the gateway
 			gwSvc := proj.NewService("foldgw")
@@ -64,24 +65,19 @@ func TestProjectWorkflow(t *testing.T) {
 			gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
 			gwContainer := &container.Container{ID: fmt.Sprintf("%d", 0), Name: gwContainerName}
 			api.
-				EXPECT().
-				GetContainer(gwContainerName).
+				On("GetContainer", gwContainerName).
 				Return(nil, nil)
 			api.
-				EXPECT().
-				GetImage(gwImgName).
+				On("GetImage", gwImgName).
 				Return(nil, nil)
 			api.
-				EXPECT().
-				PullImage(gwImgName).
+				On("PullImage", gwImgName).
 				Return(gwImg, nil)
 			api.
-				EXPECT().
-				NewContainer(gwContainerName, *gwImg).
+				On("NewContainer", gwContainerName, *gwImg).
 				Return(gwContainer)
 			api.
-				EXPECT().
-				RunContainer(
+				On("RunContainer",
 					net,
 					&container.Container{
 						ID:           fmt.Sprintf("%d", 0),
@@ -89,7 +85,8 @@ func TestProjectWorkflow(t *testing.T) {
 						NetworkAlias: gwSvc.Name,
 						Environment:  map[string]string{"FOLD_SERVICE_NAME": gwSvc.Name},
 					},
-				)
+				).
+				Return(nil)
 
 			// Should set up the services
 			for i, svc := range proj.Services {
@@ -103,15 +100,13 @@ func TestProjectWorkflow(t *testing.T) {
 				}
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
 				api.
-					EXPECT().
-					GetContainer(containerName).
+					On("GetContainer", containerName).
 					Return(nil, nil)
 				api.
-					EXPECT().
-					BuildImage(img)
+					On("BuildImage", img).
+					Return(nil)
 				api.
-					EXPECT().
-					NewContainer(containerName, *img).
+					On("NewContainer", containerName, *img).
 					Return(&container.Container{ID: fmt.Sprintf("%d", i), Name: containerName})
 				modifiedCon := &container.Container{
 					ID:           fmt.Sprintf("%d", i),
@@ -120,45 +115,66 @@ func TestProjectWorkflow(t *testing.T) {
 					Environment:  map[string]string{"FOLD_SERVICE_NAME": svc.Name},
 				}
 				api.
-					EXPECT().
-					RunContainer(gomock.Eq(net), gomock.Eq(modifiedCon))
+					On("RunContainer", net, modifiedCon).
+					Return(nil)
 			}
-			proj.Up(context.Background(), out, proj.Services...)
+			proj.Up(out, proj.Services...)
+
+			// Should get the logs
+			for _, svc := range proj.Services {
+				api.
+					On("ContainerLogs", mock.Anything).
+					Return(&container.LogStream{}, nil)
+				svc.Logs()
+			}
+		})
+		api.AssertExpectations(t)
+	}
+}
+func TestProjectDown(t *testing.T) {
+	for _, tc := range workflowTests {
+		api := &mocks.ContainerAPI{}
+		proj := tc.project
+		proj.ConfigureContainerAPI(api)
+		t.Run(tc.project.Name, func(t *testing.T) {
+			netName := fmt.Sprintf("foldnet-%s", proj.Name)
+			net := &container.Network{Name: netName}
+
+			gwSvc := proj.NewService("foldgw")
+			gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
+			gwContainer := &container.Container{ID: fmt.Sprintf("%d", 0), Name: gwContainerName}
 
 			// Should take down the services
 			for i, svc := range proj.Services {
 				containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
 				container := &container.Container{ID: fmt.Sprintf("%d", i), Name: containerName}
 				api.
-					EXPECT().
-					GetContainer(containerName).
+					On("GetContainer", containerName).
 					Return(container, nil)
 				api.
-					EXPECT().
-					StopContainer(container)
+					On("StopContainer", container).
+					Return(nil)
 			}
 			// Should take down the gateway
 			api.
-				EXPECT().
-				GetContainer(gwContainerName).
+				On("GetContainer", gwContainerName).
 				Return(gwContainer, nil)
 			api.
-				EXPECT().
-				StopContainer(gwContainer)
+				On("StopContainer", gwContainer).
+				Return(nil)
 			// Should take down the network
 			api.
-				EXPECT().
-				NewNetwork(netName).
+				On("NewNetwork", netName).
 				Return(&container.Network{Name: netName})
 			api.
-				EXPECT().
-				NetworkExists(net).
+				On("NetworkExists", net).
 				Return(true, nil)
 			api.
-				EXPECT().
-				RemoveNetwork(net)
+				On("RemoveNetwork", net).
+				Return(nil)
 			proj.Down()
 		})
+		api.AssertExpectations(t)
 	}
 }
 
@@ -166,56 +182,52 @@ func TestUpDoesntDuplicateResources(t *testing.T) {
 	// For this test we will set the mocked calls to the container API
 	// to return resources. This should result in a short circuit,
 	// and no attempt should be made to create the resources again.
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	api := NewMockContainerAPI(ctrl)
-
+	api := &mocks.ContainerAPI{}
 	proj := makeProject("one-service", &project.Service{Name: "one", Path: "./one"})
-	svc, err := proj.GetService("./one")
-	if err != nil {
-		t.Fatalf("%+v", err)
-	}
 	proj.ConfigureContainerAPI(api)
-	proj.ConfigureLogger(logging.NewTestLogger())
+	svc, err := proj.GetService("./one")
+	require.Nil(t, err)
 
 	netName := fmt.Sprintf("foldnet-%s", proj.Name)
 	net := &container.Network{Name: netName}
 	// Should reuse network
 	api.
-		EXPECT().
-		NewNetwork(netName).
+		On("NewNetwork", netName).
 		Return(net)
 	api.
-		EXPECT().
-		NetworkExists(net).
+		On("NetworkExists", net).
 		Return(true, nil)
 	// Should reuse gateway
 	gwSvc := proj.NewService("foldgw")
 	gwContainerName := fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)
 	gwContainer := &container.Container{ID: fmt.Sprintf("%d", 0), Name: gwContainerName}
 	api.
-		EXPECT().
-		GetContainer(fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)).
+		On("GetContainer", fmt.Sprintf("%s.%s", gwSvc.Id(), gwSvc.Name)).
 		Return(gwContainer, nil)
 
 	containerName := fmt.Sprintf("%s.%s", svc.Id(), svc.Name)
 	container := &container.Container{ID: fmt.Sprintf("%d", 0), Name: containerName}
 	// Should reuse service container
 	api.
-		EXPECT().
-		GetContainer(containerName).
+		On("GetContainer", containerName).
 		Return(container, nil)
-	err = proj.Up(context.Background(), &bytes.Buffer{}, svc)
-	if err != nil {
-		t.Errorf("expected no error but found %v", err)
-	}
+	err = proj.Up(&bytes.Buffer{}, svc)
+	assert.Nil(t, err)
+	api.AssertExpectations(t)
 }
 
 func makeProject(name string, services ...*project.Service) *project.Project {
 	p := &project.Project{
 		Name: name,
 	}
-	p.ConfigureLogger(logging.NewTestLogger())
+	p.ConfigureCmdCtx(
+		ctl.NewCmdCtx(
+			context.Background(),
+			logging.NewTestLogger(),
+			&config.Config{},
+			output.NewColorOutput(),
+		),
+	)
 	for _, s := range services {
 		svc := p.NewService(s.Name)
 		svc.Port = s.Port

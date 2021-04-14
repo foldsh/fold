@@ -1,226 +1,223 @@
-package container
+package container_test
 
 import (
-	"context"
+	"bytes"
 	"errors"
 	"fmt"
-	"os"
+	"io/ioutil"
 	"testing"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	gomock "github.com/golang/mock/gomock"
+	dockerContainer "github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
+	"github.com/foldsh/fold/ctl/container"
 	"github.com/foldsh/fold/ctl/fs"
-	"github.com/foldsh/fold/internal/testutils"
-	"github.com/foldsh/fold/logging"
 )
-
-var any = gomock.Any()
 
 func TestContainerStartAndStop(t *testing.T) {
 	// TODO improve this by checking the container create config in detail
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	con := &Container{
-		Name:        "test",
-		Image:       Image{Name: "fold/test", WorkDir: "/fold"},
-		Mounts:      []Mount{{"/home/test/blah/src", "/dst"}, {"/home/test/blah/foo", "/bar"}},
+	rt, dc, mfs := setup()
+	c := &container.Container{
+		Name:  "test",
+		Image: container.Image{Name: "fold/test", WorkDir: "/fold"},
+		Mounts: []container.Mount{
+			{"/home/test/blah/src", "/dst"},
+			{"/home/test/blah/foo", "/bar"},
+		},
 		Environment: map[string]string{"FOLD_SERVICE_NAME": "test"},
 	}
-	dc.
-		EXPECT().
-		ContainerCreate(
-			any, &container.Config{Image: "fold/test", Env: []string{
+	mfs.On("MkdirAll", "/home/test/blah/src", fs.DIR_PERMISSIONS).Return(nil)
+	mfs.On("MkdirAll", "/home/test/blah/foo", fs.DIR_PERMISSIONS).Return(nil)
+	dc.On(
+		"ContainerCreate",
+		mock.Anything,
+		&dockerContainer.Config{
+			Image: "fold/test",
+			Env: []string{
 				"FOLD_STAGE=LOCAL",
-				fmt.Sprintf("FOLD_WATCH_DIR=%s", con.Mounts[0].Dst),
+				fmt.Sprintf("FOLD_WATCH_DIR=%s", c.Mounts[0].Dst),
 				"FOLD_SERVICE_NAME=test",
-			}}, any, any, any, "test",
-		).
-		Return(container.ContainerCreateCreatedBody{ID: "testContainerID"}, nil)
-	dc.
-		EXPECT().
-		ContainerStart(any, "testContainerID", any)
-	rt.RunContainer(&Network{}, con)
-	if con.ID != "testContainerID" {
-		t.Errorf("Expected container ID to be set after start")
-	}
-	testutils.Diff(
-		t,
-		[]mkdirCall{
-			{"/home/test/blah/src", fs.DIR_PERMISSIONS},
-			{"/home/test/blah/foo", fs.DIR_PERMISSIONS},
+			},
 		},
-		mfs.Calls,
-		"Calls to mkdirAll did not match expectations",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+		"test",
+	).Return(
+		dockerContainer.ContainerCreateCreatedBody{ID: "testContainerID"},
+		nil,
 	)
-	dc.
-		EXPECT().
-		ContainerStop(any, "testContainerID", any)
-	rt.StopContainer(con)
+	dc.On("ContainerStart", mock.Anything, "testContainerID", mock.Anything).Return(nil)
+
+	err := rt.RunContainer(&container.Network{}, c)
+	assert.Nil(t, err)
+
+	assert.Equal(t, "testContainerID", c.ID)
+
+	dc.On("ContainerStop", mock.Anything, "testContainerID", mock.Anything).Return(nil)
+	rt.StopContainer(c)
+
+	dc.AssertExpectations(t)
+	mfs.AssertExpectations(t)
+}
+
+func TestContainerCreateFailure(t *testing.T) {
+	rt, dc, mfs := setup()
+	con := &container.Container{
+		Name:   "test",
+		Image:  container.Image{Name: "fold/test"},
+		Mounts: []container.Mount{{"foo", "bar"}},
+	}
+	mfs.On("MkdirAll", "foo", fs.DIR_PERMISSIONS).Return(nil)
+	dc.On(
+		"ContainerCreate",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Return(
+		dockerContainer.ContainerCreateCreatedBody{},
+		errors.New("an error"),
+	)
+
+	err := rt.RunContainer(&container.Network{}, con)
+	assert.ErrorIs(t, err, container.FailedToCreateContainer)
+	dc.AssertExpectations(t)
 }
 
 func TestContainerStartAndStopFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	con := &Container{
+	rt, dc, mfs := setup()
+	con := &container.Container{
 		Name:   "test",
-		Image:  Image{Name: "fold/test"},
-		Mounts: []Mount{{"foo", "bar"}},
+		Image:  container.Image{Name: "fold/test"},
+		Mounts: []container.Mount{{"foo", "bar"}},
 	}
+	mfs.On("MkdirAll", "foo", fs.DIR_PERMISSIONS).Return(nil)
+	dc.On(
+		"ContainerCreate",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Return(
+		dockerContainer.ContainerCreateCreatedBody{},
+		nil,
+	)
 
-	dc.
-		EXPECT().
-		ContainerCreate(any, any, any, any, any, any).
-		Return(container.ContainerCreateCreatedBody{}, errors.New("an error"))
-	err := rt.RunContainer(&Network{}, con)
-	if !errors.Is(err, FailedToCreateContainer) {
-		t.Errorf("Expected FailedToCreateContainer but found %v", err)
-	}
-	dc.
-		EXPECT().
-		ContainerCreate(any, any, any, any, any, any).
-		Return(container.ContainerCreateCreatedBody{}, nil)
-	dc.
-		EXPECT().
-		ContainerStart(any, any, any).
-		Return(errors.New("an error"))
-	err = rt.RunContainer(&Network{}, con)
-	if !errors.Is(err, FailedToStartContainer) {
-		t.Errorf("Expected FailedToStartContainer but found %v", err)
-	}
-	dc.
-		EXPECT().
-		ContainerStop(any, any, any).
-		Return(errors.New("an error"))
+	dc.On(
+		"ContainerStart",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Return(
+		errors.New("an error"),
+	)
+
+	err := rt.RunContainer(&container.Network{}, con)
+	assert.ErrorIs(t, err, container.FailedToStartContainer)
+	dc.On(
+		"ContainerStop",
+		mock.Anything,
+		mock.Anything,
+		mock.Anything,
+	).Return(
+		errors.New("an error"),
+	)
+
 	err = rt.StopContainer(con)
-	if !errors.Is(err, FailedToStopContainer) {
-		t.Errorf("Expected FailedToStopContainer but found %v", err)
-	}
+	assert.ErrorIs(t, err, container.FailedToStopContainer)
+	dc.AssertExpectations(t)
 }
 
 func TestContainerRemove(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	con := &Container{
+	rt, dc, _ := setup()
+	con := &container.Container{
 		ID:     "testContainerID",
 		Name:   "test",
-		Image:  Image{Name: "fold/test"},
-		Mounts: []Mount{{"foo", "bar"}},
+		Image:  container.Image{Name: "fold/test"},
+		Mounts: []container.Mount{{"foo", "bar"}},
 	}
 
 	dc.
-		EXPECT().
-		ContainerRemove(any, "testContainerID", any)
+		On("ContainerRemove", mock.Anything, "testContainerID", mock.Anything).Return(nil)
 	err := rt.RemoveContainer(con)
-	if err != nil {
-		t.Errorf("Expected error to be nil but found %v", err)
-	}
+	assert.Nil(t, err)
+	dc.AssertExpectations(t)
 }
 
 func TestContainerRemoveFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	con := &Container{
+	rt, dc, _ := setup()
+	con := &container.Container{
 		ID:     "testContainerID",
 		Name:   "test",
-		Image:  Image{Name: "fold/test"},
-		Mounts: []Mount{{"foo", "bar"}},
+		Image:  container.Image{Name: "fold/test"},
+		Mounts: []container.Mount{{"foo", "bar"}},
 	}
 
 	dc.
-		EXPECT().
-		ContainerRemove(any, "testContainerID", any).
+		On("ContainerRemove", mock.Anything, "testContainerID", mock.Anything).
 		Return(errors.New("an error"))
 	err := rt.RemoveContainer(con)
-	if !errors.Is(err, FailedToRemoveContainer) {
-		t.Errorf("Expected FailedToRemoveContainer but found %v", err)
-	}
+	assert.ErrorIs(t, err, container.FailedToRemoveContainer)
+	dc.AssertExpectations(t)
 }
 
 func TestContainerJoinAndLeaveNetwork(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	net := &Network{Name: "testNet", ID: "testNetID"}
-	con := &Container{
+	rt, dc, _ := setup()
+	net := &container.Network{Name: "testNet", ID: "testNetID"}
+	con := &container.Container{
 		Name:   "testCon",
 		ID:     "testConID",
-		Image:  Image{Name: "fold/test"},
-		Mounts: []Mount{{"foo", "bar"}},
+		Image:  container.Image{Name: "fold/test"},
+		Mounts: []container.Mount{{"foo", "bar"}},
 	}
 
 	// Happy
-	dc.
-		EXPECT().
-		NetworkConnect(any, "testNetID", "testConID", any)
+	dc.On("NetworkConnect", mock.Anything, "testNetID", "testConID", mock.Anything).Return(nil)
 	rt.AddToNetwork(net, con)
 
-	dc.
-		EXPECT().
-		NetworkDisconnect(any, "testNetID", "testConID", false)
+	dc.On("NetworkDisconnect", mock.Anything, "testNetID", "testConID", false).Return(nil)
 	rt.RemoveFromNetwork(net, con)
+	dc.AssertExpectations(t)
 }
 
 func TestContainerJoinAndLeaveNetworkFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	net := &Network{Name: "testNet", ID: "testNetID"}
-	con := &Container{
+	rt, dc, _ := setup()
+	net := &container.Network{Name: "testNet", ID: "testNetID"}
+	con := &container.Container{
 		Name:   "testCon",
 		ID:     "testConID",
-		Image:  Image{Name: "fold/test"},
-		Mounts: []Mount{{"foo", "bar"}},
+		Image:  container.Image{Name: "fold/test"},
+		Mounts: []container.Mount{{"foo", "bar"}},
 	}
 
 	dc.
-		EXPECT().
-		NetworkConnect(any, "testNetID", "testConID", any).
+		On("NetworkConnect", mock.Anything, "testNetID", "testConID", mock.Anything).
 		Return(errors.New("an error"))
 	err := rt.AddToNetwork(net, con)
-	if !errors.Is(err, FailedToJoinNetwork) {
-		t.Errorf("Expected FailedToJoinNetwork but got %v", err)
-	}
+	assert.ErrorIs(t, err, container.FailedToJoinNetwork)
 
 	dc.
-		EXPECT().
-		NetworkDisconnect(any, "testNetID", "testConID", false).
+		On("NetworkDisconnect", mock.Anything, "testNetID", "testConID", false).
 		Return(errors.New("an error"))
 	err = rt.RemoveFromNetwork(net, con)
-	if !errors.Is(err, FailedToLeaveNetwork) {
-		t.Errorf("Expected FailedToLeaveNetwork but got %v", err)
-	}
+	assert.ErrorIs(t, err, container.FailedToLeaveNetwork)
+	dc.AssertExpectations(t)
 }
 
 func TestListAllFoldContainers(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-
+	rt, dc, _ := setup()
 	dc.
-		EXPECT().
-		ContainerList(any, any).
+		On("ContainerList", mock.Anything, mock.Anything).
 		Return([]types.Container{
 			containerResponse("a", "/foo", "/bar"),
 			containerResponse("b", "/fold.foo", "/bar"),
@@ -230,60 +227,46 @@ func TestListAllFoldContainers(t *testing.T) {
 		}, nil)
 
 	cs, err := rt.AllContainers()
-	if err != nil {
-		t.Errorf("Expected nil but foudn %v", err)
-	}
-	expectation := []*Container{
+	assert.Nil(t, err)
+	expectation := []*container.Container{
 		{
 			ID:     "b",
 			Name:   "fold.foo",
-			Image:  Image{Name: "test"},
-			Mounts: []Mount{Mount{"src", "dst"}},
+			Image:  container.Image{Name: "test"},
+			Mounts: []container.Mount{container.Mount{"src", "dst"}},
 		},
 		{
 			ID:     "c",
 			Name:   "fold.bar",
-			Image:  Image{Name: "test"},
-			Mounts: []Mount{Mount{"src", "dst"}},
+			Image:  container.Image{Name: "test"},
+			Mounts: []container.Mount{container.Mount{"src", "dst"}},
 		},
 		{
 			ID:     "d",
 			Name:   "fold.baz",
-			Image:  Image{Name: "test"},
-			Mounts: []Mount{Mount{"src", "dst"}},
+			Image:  container.Image{Name: "test"},
+			Mounts: []container.Mount{container.Mount{"src", "dst"}},
 		},
 	}
 	diffContainers(t, expectation, cs)
+	dc.AssertExpectations(t)
 }
 
 func TestListAllFoldContainersFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-
+	rt, dc, _ := setup()
 	dc.
-		EXPECT().
-		ContainerList(any, any).
+		On("ContainerList", mock.Anything, mock.Anything).
 		Return([]types.Container{}, errors.New("an error"))
 
 	_, err := rt.AllContainers()
-	if !errors.Is(err, DockerEngineError) {
-		t.Errorf("Expected DockerEngineError but foudn %v", err)
-	}
+	assert.ErrorIs(t, err, container.DockerEngineError)
+	dc.AssertExpectations(t)
 }
 
 func TestGetContainer(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-
+	rt, dc, _ := setup()
 	dc.
-		EXPECT().
-		ContainerList(any, any).
+		On("ContainerList", mock.Anything, mock.Anything).
 		Return([]types.Container{
 			containerResponse("a", "/foo", "/bar"),
 			containerResponse("b", "/fold.foo", "/bar"),
@@ -293,23 +276,52 @@ func TestGetContainer(t *testing.T) {
 		}, nil)
 
 	c, err := rt.GetContainer("foo")
-	if err != nil {
-		t.Errorf("Expected nil but foudn %v", err)
-	}
-	expectation := &Container{
-		ID: "b", Name: "fold.foo", Image: Image{Name: "test"}, Mounts: []Mount{Mount{"src", "dst"}},
+	assert.Nil(t, err)
+	expectation := &container.Container{
+		ID: "b", Name: "fold.foo", Image: container.Image{Name: "test"}, Mounts: []container.Mount{{"src", "dst"}},
 	}
 	diffContainers(t, expectation, c)
+	dc.AssertExpectations(t)
 }
 
-func mockRuntime(dc DockerClient, fs *mockFileSystem) *ContainerRuntime {
-	return &ContainerRuntime{
-		cli:    dc,
-		ctx:    context.Background(),
-		logger: logging.NewTestLogger(),
-		out:    os.Stdout,
-		fs:     fs,
+func TestContainerLogs(t *testing.T) {
+	rt, dc, _ := setup()
+	con := &container.Container{
+		Name:   "testCon",
+		ID:     "testConID",
+		Image:  container.Image{Name: "fold/test"},
+		Mounts: []container.Mount{{"foo", "bar"}},
 	}
+
+	dc.
+		On("ContainerLogs", mock.Anything, con.ID, types.ContainerLogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Follow:     true,
+		}).
+		Return(
+			ioutil.NopCloser(
+				bytes.NewReader(
+					[]byte{
+						// The first byte of the header says which message stream this is from
+						0x01,
+						// The next 3 bytes are always 0
+						0x00, 0x00, 0x00,
+						// The next 4 bytes are the message size in big endian layout (7 in this case)
+						0x00, 0x00, 0x00, 0x07,
+						// Then we have the message body, in this case the text 'foo bar'
+						0x66, 0x6f, 0x6f, 0x20, 0x62, 0x61, 0x72,
+					},
+				),
+			), nil,
+		)
+	ls, _ := rt.ContainerLogs(con)
+	var buf bytes.Buffer
+	err := ls.Stream(&buf)
+	require.Nil(t, err)
+	ls.Stop()
+	assert.Equal(t, "foo bar", buf.String())
+	dc.AssertExpectations(t)
 }
 
 func containerResponse(id string, names ...string) types.Container {
@@ -325,22 +337,8 @@ func diffContainers(t *testing.T, expectation, actual interface{}) {
 	if diff := cmp.Diff(
 		expectation,
 		actual,
-		cmpopts.IgnoreUnexported(Container{}),
+		cmpopts.IgnoreUnexported(container.Container{}),
 	); diff != "" {
 		t.Errorf("Expected container lists to be equal(-want +got):\n%s", diff)
 	}
-}
-
-type mkdirCall struct {
-	Path string
-	Perm os.FileMode
-}
-
-type mockFileSystem struct {
-	Calls []mkdirCall
-}
-
-func (fs *mockFileSystem) mkdirAll(path string, perm os.FileMode) error {
-	fs.Calls = append(fs.Calls, mkdirCall{path, perm})
-	return nil
 }

@@ -1,6 +1,7 @@
 // Package runtime manages all of the components required to run a users application. It is
 // implemented as a state machine. This provides an easy way to manage the relationship between
 // the state of the underlying process and the behaviour of the runtime.
+
 package runtime
 
 import (
@@ -18,6 +19,7 @@ import (
 	"github.com/foldsh/fold/runtime/transport"
 )
 
+//go:generate mockery --config ../.mockery.yaml --name Supervisor
 type Supervisor interface {
 	Start(env map[string]string) error
 	Restart(env map[string]string) error
@@ -27,6 +29,7 @@ type Supervisor interface {
 	Signal(sig os.Signal) error
 }
 
+//go:generate mockery --config ../.mockery.yaml --name Client
 type Client interface {
 	Start(string) error
 	Stop() error
@@ -35,6 +38,7 @@ type Client interface {
 	DoRequest(context.Context, *transport.Request) (*transport.Response, error)
 }
 
+//go:generate mockery --config ../.mockery.yaml --name Router
 type Router interface {
 	http.Handler
 	Configure(*manifest.Manifest)
@@ -196,6 +200,7 @@ func (r *Runtime) Signal(signal os.Signal) {
 }
 
 func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.logger.Debugf("Serving request from runtime")
 	r.router.ServeHTTP(w, req)
 }
 
@@ -210,7 +215,7 @@ func (r *Runtime) createAndConfigureRouter() error {
 	defer cancel()
 	manifest, err := r.client.GetManifest(ctx)
 	if err != nil {
-		r.logger.Debugf("failed to fetch manifest")
+		r.logger.Debugf("Failed to fetch manifest")
 		return err
 	}
 	r.router.Configure(manifest)
