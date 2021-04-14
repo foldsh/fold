@@ -1,94 +1,76 @@
-package container
+package container_test
 
 import (
 	"errors"
 	"testing"
 
 	"github.com/docker/docker/api/types"
-	gomock "github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/foldsh/fold/ctl/container"
 )
 
 func TestNetworkCreateAndDestroy(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	net := &Network{Name: "test"}
+	rt, dc, _ := setup()
+	net := &container.Network{Name: "test"}
 
 	dc.
-		EXPECT().
-		NetworkList(any, any).
+		On("NetworkList", mock.Anything, mock.Anything).
 		Return([]types.NetworkResource{
 			{Name: "foo", ID: "fooID"},
 			{Name: "bar", ID: "barID"},
 		}, nil)
 	dc.
-		EXPECT().
-		NetworkCreate(any, "test", any).
+		On("NetworkCreate", mock.Anything, "test", mock.Anything).
 		Return(types.NetworkCreateResponse{ID: "testNetID"}, nil)
 	rt.NetworkExists(net)
 	rt.CreateNetwork(net)
-	if net.ID != "testNetID" {
-		t.Errorf("After creating expected ID to be 'testNetID' but found %s", net.ID)
-	}
+	assert.Equal(t, "testNetID", net.ID)
 
 	dc.
-		EXPECT().
-		NetworkList(any, any).
+		On("NetworkList", mock.Anything, mock.Anything).
 		Return([]types.NetworkResource{
 			{Name: "foo", ID: "fooID"},
 			{Name: "bar", ID: "barID"},
 			{Name: "test", ID: "testNetID"},
 		}, nil)
 	rt.NetworkExists(net)
-	dc.EXPECT().NetworkRemove(any, "testNetID")
+	dc.On("NetworkRemove", mock.Anything, "testNetID").Return(nil)
 	rt.RemoveNetwork(net)
+	dc.AssertExpectations(t)
 }
 
 func TestNetworkCreateFailure(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	net := &Network{Name: "test"}
+	rt, dc, _ := setup()
+	net := &container.Network{Name: "test"}
 	dc.
-		EXPECT().
-		NetworkCreate(any, "test", any).
+		On("NetworkCreate", mock.Anything, "test", mock.Anything).
 		Return(types.NetworkCreateResponse{}, errors.New("something went wrong"))
 	err := rt.CreateNetwork(net)
-	if !errors.Is(err, FailedToCreateNetwork) {
-		t.Errorf("Expected FailedToCreateNetwork error but found %v", err)
-	}
+	assert.ErrorIs(t, err, container.FailedToCreateNetwork)
+	dc.AssertExpectations(t)
 }
 
 func TestNetworkThatExistsShouldNotBeRecreated(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	dc := NewMockDockerClient(ctrl)
-	mfs := &mockFileSystem{}
-	rt := mockRuntime(dc, mfs)
-	net := &Network{Name: "test"}
+	rt, dc, _ := setup()
+	net := &container.Network{Name: "test"}
 	dc.
-		EXPECT().
-		NetworkList(any, any).
+		On("NetworkList", mock.Anything, mock.Anything).
 		Return([]types.NetworkResource{
 			{Name: "test", ID: "testID"},
 			{Name: "foo", ID: "fooID"},
 			{Name: "bar", ID: "barID"},
 		}, nil)
 	exists, err := rt.NetworkExists(net)
-	if err != nil {
-		t.Errorf("Expected nil but found %v", err)
-	}
+	assert.Nil(t, err)
 	if !exists {
 		err := rt.CreateNetwork(net)
+		assert.Nil(t, err)
 		if err != nil {
 			t.Errorf("Expected nil but found %v", err)
 		}
 	}
-	if net.ID != "testID" {
-		t.Errorf("Expected to find ID of existing network")
-	}
+	assert.Equal(t, "testID", net.ID)
+	dc.AssertExpectations(t)
 }
