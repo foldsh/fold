@@ -21,7 +21,7 @@ func NewRuntime(
 		ctx:    ctx,
 		logger: logger,
 		out:    out,
-		fs:     osFileSystem{},
+		fs:     fs,
 	}, nil
 }
 
@@ -48,6 +48,10 @@ func NewDockerClient(logger logging.Logger) (DockerClient, error) {
 		return nil, FailedToConnectToDockerEngineError
 	}
 	return client, nil
+}
+
+func NewOSFileSystem() FileSystem {
+	return osFileSystem{}
 }
 
 type osFileSystem struct{}

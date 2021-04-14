@@ -16,11 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/foldsh/fold/ctl/container"
+	"github.com/foldsh/fold/ctl/fs"
 )
 
 func TestContainerStartAndStop(t *testing.T) {
 	// TODO improve this by checking the container create config in detail
-	rt, dc, _ := setup()
+	rt, dc, mfs := setup()
 	c := &container.Container{
 		Name:  "test",
 		Image: container.Image{Name: "fold/test", WorkDir: "/fold"},
@@ -30,8 +31,8 @@ func TestContainerStartAndStop(t *testing.T) {
 		},
 		Environment: map[string]string{"FOLD_SERVICE_NAME": "test"},
 	}
-	// mfs.On("MkdirAll", "/home/test/blah/src", fs.DIR_PERMISSIONS).Return(nil)
-	// mfs.On("MkdirAll", "/home/test/blah/foo", fs.DIR_PERMISSIONS).Return(nil)
+	mfs.On("MkdirAll", "/home/test/blah/src", fs.DIR_PERMISSIONS).Return(nil)
+	mfs.On("MkdirAll", "/home/test/blah/foo", fs.DIR_PERMISSIONS).Return(nil)
 	dc.On(
 		"ContainerCreate",
 		mock.Anything,
@@ -51,27 +52,28 @@ func TestContainerStartAndStop(t *testing.T) {
 		dockerContainer.ContainerCreateCreatedBody{ID: "testContainerID"},
 		nil,
 	)
-	// dc.On("ContainerStart", mock.Anything, "testContainerID", mock.Anything).Return(nil)
+	dc.On("ContainerStart", mock.Anything, "testContainerID", mock.Anything).Return(nil)
 
-	rt.RunContainer(&container.Network{}, c)
+	err := rt.RunContainer(&container.Network{}, c)
+	assert.Nil(t, err)
 
-	// assert.Equal(t, "testContainerID", con.ID)
+	assert.Equal(t, "testContainerID", c.ID)
 
-	// dc.On("ContainerStop", mock.Anything, "testContainerID", mock.Anything)
-	// rt.StopContainer(con)
+	dc.On("ContainerStop", mock.Anything, "testContainerID", mock.Anything).Return(nil)
+	rt.StopContainer(c)
 
 	dc.AssertExpectations(t)
-	// mfs.AssertExpectations(t)
+	mfs.AssertExpectations(t)
 }
 
 func TestContainerCreateFailure(t *testing.T) {
-	rt, dc, _ := setup()
+	rt, dc, mfs := setup()
 	con := &container.Container{
 		Name:   "test",
 		Image:  container.Image{Name: "fold/test"},
 		Mounts: []container.Mount{{"foo", "bar"}},
 	}
-
+	mfs.On("MkdirAll", "foo", fs.DIR_PERMISSIONS).Return(nil)
 	dc.On(
 		"ContainerCreate",
 		mock.Anything,
@@ -91,13 +93,13 @@ func TestContainerCreateFailure(t *testing.T) {
 }
 
 func TestContainerStartAndStopFailure(t *testing.T) {
-	rt, dc, _ := setup()
+	rt, dc, mfs := setup()
 	con := &container.Container{
 		Name:   "test",
 		Image:  container.Image{Name: "fold/test"},
 		Mounts: []container.Mount{{"foo", "bar"}},
 	}
-
+	mfs.On("MkdirAll", "foo", fs.DIR_PERMISSIONS).Return(nil)
 	dc.On(
 		"ContainerCreate",
 		mock.Anything,

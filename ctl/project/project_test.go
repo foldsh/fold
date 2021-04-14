@@ -2,7 +2,6 @@ package project_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,6 +10,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/foldsh/fold/ctl"
 	"github.com/foldsh/fold/ctl/config"
@@ -22,44 +23,36 @@ import (
 func TestProjectConfigValidation(t *testing.T) {
 	logger := logging.NewTestLogger()
 	dir, err := ioutil.TempDir("", "testProjectConfig")
-	if err != nil {
-		fmt.Printf("%+v", err)
-		t.Fatal("Failed to create temporary test directory")
-	}
+	require.Nil(t, err)
 	defer os.RemoveAll(dir)
-	if project.IsAFoldProject(dir) {
-		t.Errorf("Empty directory should not be a valid fold project")
-	}
+	assert.False(
+		t,
+		project.IsAFoldProject(dir),
+		"Empty directory should not be a valid fold project",
+	)
+
 	cfgPath := filepath.Join(dir, "fold.yaml")
 
 	ctx := newCmdCtx(logger, dir)
 	_, err = project.Load(ctx, dir)
-	if !errors.Is(err, project.NotAFoldProject) {
-		t.Errorf("Empty directory should not be a valid fold project")
-	}
+	assert.ErrorIs(t, err, project.NotAFoldProject)
 
 	err = ioutil.WriteFile(cfgPath, []byte("not valid yaml"), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write to config file.")
-	}
-	if !project.IsAFoldProject(dir) {
-		t.Errorf("After creating a fold.yaml file it should be a valid fold project")
-	}
+	require.Nil(t, err, "Failed to write to config file.")
+
+	assert.True(
+		t,
+		project.IsAFoldProject(dir),
+		"After creating a fold.yaml file it should be a valid fold project",
+	)
 	_, err = project.Load(ctx, dir)
-	if !errors.Is(err, project.InvalidConfig) {
-		t.Errorf("Non yaml file should lead to an InvalidConfig error.")
-	}
+	assert.ErrorIs(t, err, project.InvalidConfig)
 
 	err = ioutil.WriteFile(cfgPath, []byte("valid: yaml"), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write to config file.")
-	}
+	require.Nil(t, err, "Failed to write to config file.")
 
 	cfg, err := project.Load(ctx, dir)
-	if !errors.Is(err, project.InvalidConfig) {
-		logger.Debugf("Loaded config: %+v", cfg)
-		t.Errorf("Expected InvalidConfig but got %v\n", err)
-	}
+	assert.ErrorIsf(t, err, project.InvalidConfig, "Expected InvalidConfig but got %v\n", err)
 
 	s := `name: blah
 maintainer: blah
@@ -73,13 +66,11 @@ services:
   - ./bar
 `
 	err = ioutil.WriteFile(cfgPath, []byte(s), 0644)
-	if err != nil {
-		t.Fatalf("Failed to write to config file.")
-	}
+	require.Nil(t, err, "Failed to write to config file.")
+
 	cfg, err = project.Load(ctx, dir)
-	if err != nil {
-		t.Errorf("Expected to load config but got error %v", err)
-	}
+	assert.Nilf(t, err, "Expected to load config but got error %v", err)
+
 	expectation := &project.Project{
 		Name:       "blah",
 		Maintainer: "blah",
@@ -193,20 +184,15 @@ func TestProjectServiceUtils(t *testing.T) {
 	invalidServicePaths := []string{"./b", "b", "./b/", "./foo/a", ".a/a/"}
 	for _, path := range invalidServicePaths {
 		s, err := p.GetService(path)
-		if s != nil {
-			t.Errorf("Service should be nil when asking for an invalid service")
-		}
+		assert.Nil(t, s, "Service should be nil when asking for an invalid service")
+
 		var notAService project.NotAService
-		if !errors.As(err, &notAService) {
-			t.Errorf("Expected NotAService but got %v", notAService)
-		}
+		assert.ErrorAsf(t, err, &notAService, "Expected NotAService but got %v", notAService)
 	}
 	validServicePaths := []string{"a", "./a", "a/", "./a/"}
 	for _, path := range validServicePaths {
 		s, err := p.GetService(path)
-		if err != nil {
-			t.Errorf("Expected error to be nil but found %v", err)
-		}
+		assert.Nilf(t, err, "Expected error to be nil but found %v", err)
 		diffConfig(t, &project.Service{Name: "a", Path: "a"}, s)
 	}
 }
@@ -258,14 +244,15 @@ func TestProjectValidation(t *testing.T) {
 			if result == nil {
 				wasValid = true
 			}
-			if wasValid != tc.expectation {
-				t.Errorf(
-					"For case %s expected valid to be %t but found %v.",
-					tc.project.Name,
-					tc.expectation,
-					result,
-				)
-			}
+			assert.Equalf(
+				t,
+				tc.expectation,
+				wasValid,
+				"For case %s expected valid to be %t but found %v.",
+				tc.project.Name,
+				tc.expectation,
+				result,
+			)
 		})
 	}
 }

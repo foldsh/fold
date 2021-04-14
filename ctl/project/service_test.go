@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/foldsh/fold/ctl/project"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestServiceNameValidation(t *testing.T) {
@@ -31,14 +32,15 @@ func TestServiceNameValidation(t *testing.T) {
 			if result == nil {
 				wasValid = true
 			}
-			if wasValid != tc.expectation {
-				t.Errorf(
-					"For case %s expected valid to be %t but found %v.",
-					tc.service.Name,
-					tc.expectation,
-					result,
-				)
-			}
+			assert.Equalf(
+				t,
+				tc.expectation,
+				wasValid,
+				"For case %s expected valid to be %t but found %v.",
+				tc.service.Name,
+				tc.expectation,
+				result,
+			)
 		})
 	}
 }

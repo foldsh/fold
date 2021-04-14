@@ -56,7 +56,17 @@ func loadProject(ctx *ctl.CmdCtx) *project.Project {
 func loadProjectWithRuntime(ctx *ctl.CmdCtx, out io.Writer) *project.Project {
 	dockerTimeoutCtx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	p := loadProject(ctx)
-	rt, err := container.NewRuntime(dockerTimeoutCtx, ctx.Logger, out)
+	dc, err := container.NewDockerClient(ctx.Logger)
+	if err != nil {
+		ctx.InformError(err)
+	}
+	rt, err := container.NewRuntime(
+		dockerTimeoutCtx,
+		ctx.Logger,
+		out,
+		container.NewOSFileSystem(),
+		dc,
+	)
 	if err != nil {
 		ctx.InformError(err)
 	}

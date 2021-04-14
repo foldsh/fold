@@ -10,13 +10,14 @@ import (
 	"testing"
 	"time"
 
-	gomock "github.com/golang/mock/gomock"
-
 	"github.com/foldsh/fold/logging"
+	"github.com/foldsh/fold/manifest"
 	"github.com/foldsh/fold/runtime"
 	"github.com/foldsh/fold/runtime/handler"
+	"github.com/foldsh/fold/runtime/mocks"
 	"github.com/foldsh/fold/runtime/router"
 	"github.com/foldsh/fold/runtime/supervisor"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestStartFromDOWNState(t *testing.T) {
@@ -145,15 +146,15 @@ func TestStopOnSignal(t *testing.T) {
 	mockSignal := make(chan struct{})
 
 	// This is the start
-	ctx.supervisor.EXPECT().Start(map[string]string{"FOLD_SOCK_ADDR": SOCKET})
-	ctx.supervisor.EXPECT().Wait().DoAndReturn(func() error {
+	ctx.supervisor.On("Start", map[string]string{"FOLD_SOCK_ADDR": SOCKET}).Return(nil)
+	ctx.supervisor.On("Wait").Return(supervisor.TerminatedBySignal).Run(func(args mock.Arguments) {
 		// Sleep for a bit to simulate the process running
+		time.Sleep(10 * time.Millisecond)
 		<-mockSignal
-		return supervisor.TerminatedBySignal
 	})
-	ctx.client.EXPECT().Start(SOCKET)
-	ctx.client.EXPECT().GetManifest(gomock.Any())
-	ctx.router.EXPECT().Configure(gomock.Any())
+	ctx.client.On("Start", SOCKET).Return(nil)
+	ctx.client.On("GetManifest", mock.Anything).Return(&manifest.Manifest{}, nil)
+	ctx.router.On("Configure", mock.Anything)
 
 	ctx.runtime.Start()
 
@@ -180,7 +181,7 @@ func TestDoRequestInUPState(t *testing.T) {
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
 	// In the UP state, we expect the request to be passed through to the actual application router.
-	ctx.router.EXPECT().ServeHTTP(rw, req)
+	ctx.router.On("ServeHTTP", rw, req)
 	ctx.runtime.ServeHTTP(rw, req)
 }
 
@@ -192,7 +193,7 @@ func TestDoRequestInDOWNState(t *testing.T) {
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
 	// In the DOWN state we expect the request to be passed on to the default router.
-	ctx.defaultRouter.EXPECT().ServeHTTP(rw, req)
+	ctx.defaultRouter.On("ServeHTTP", rw, req)
 	ctx.runtime.ServeHTTP(rw, req)
 }
 
@@ -207,14 +208,14 @@ func TestDoRequestInEXITEDState(t *testing.T) {
 	rw := handler.NewResponseWriter()
 	req, _ := http.NewRequest("GET", "/fold", ioutil.NopCloser(strings.NewReader("fold")))
 	// In the EXITED state we expect the request to be passed on to the default router.
-	ctx.defaultRouter.EXPECT().ServeHTTP(rw, req)
+	ctx.defaultRouter.On("ServeHTTP", rw, req)
 	ctx.runtime.ServeHTTP(rw, req)
 }
 
 func TestHandleSignal(t *testing.T) {
 	ctx := makeRuntime(t)
 	defer ctx.Finish()
-	ctx.supervisor.EXPECT().Signal(syscall.SIGTERM)
+	ctx.supervisor.On("Signal", syscall.SIGTERM).Return(nil)
 	ctx.runtime.Signal(syscall.SIGTERM)
 }
 
@@ -280,12 +281,12 @@ func cleanUpWatchers(ctx *testContext) {
 }
 
 type testContext struct {
-	ctrl          *gomock.Controller
+	t             *testing.T
 	runtime       *runtime.Runtime
-	supervisor    *MockSupervisor
-	client        *MockClient
-	router        *MockRouter
-	defaultRouter *MockRouter
+	supervisor    *mocks.Supervisor
+	client        *mocks.Client
+	router        *mocks.Router
+	defaultRouter *mocks.Router
 	done          chan struct{}
 }
 
@@ -294,34 +295,36 @@ func (c *testContext) Finish() {
 	// we close out the test and check that everything has been called correctly.
 	time.Sleep(10 * time.Millisecond)
 
-	c.ctrl.Finish()
+	c.supervisor.AssertExpectations(c.t)
+	c.client.AssertExpectations(c.t)
+	c.router.AssertExpectations(c.t)
+	c.defaultRouter.AssertExpectations(c.t)
 }
 
 var SOCKET = "/tmp/test.runtime.sock"
 
 func (c *testContext) expectRuntimeStartTrace() {
-	c.supervisor.EXPECT().Start(map[string]string{"FOLD_SOCK_ADDR": SOCKET})
-	c.supervisor.EXPECT().Wait()
-	c.client.EXPECT().Start(SOCKET)
-	c.client.EXPECT().GetManifest(gomock.Any())
-	c.router.EXPECT().Configure(gomock.Any())
+	c.supervisor.On("Start", map[string]string{"FOLD_SOCK_ADDR": SOCKET}).Return(nil)
+	c.supervisor.On("Wait").Return(nil)
+	c.client.On("Start", SOCKET).Return(nil)
+	c.client.On("GetManifest", mock.Anything).Return(&manifest.Manifest{}, nil)
+	c.router.On("Configure", mock.Anything)
 }
 
 func (c *testContext) expectRuntimeStopTrace() {
-	c.client.EXPECT().Stop()
-	c.supervisor.EXPECT().Stop()
+	c.client.On("Stop").Return(nil)
+	c.supervisor.On("Stop").Return(nil)
 }
 
 func makeRuntime(
 	t *testing.T,
 	options ...runtime.Option,
 ) *testContext {
-	ctrl := gomock.NewController(t)
-	supervisor := NewMockSupervisor(ctrl)
-	client := NewMockClient(ctrl)
+	supervisor := &mocks.Supervisor{}
+	client := &mocks.Client{}
 	socketFactory := func() string { return SOCKET }
-	defaultRouter := NewMockRouter(ctrl)
-	activeRouter := NewMockRouter(ctrl)
+	defaultRouter := &mocks.Router{}
+	activeRouter := &mocks.Router{}
 	routerFactory := func(logger logging.Logger, doer router.RequestDoer) runtime.Router {
 		return activeRouter
 	}
@@ -346,7 +349,7 @@ func makeRuntime(
 	)
 
 	return &testContext{
-		ctrl:          ctrl,
+		t:             t,
 		runtime:       rt,
 		supervisor:    supervisor,
 		client:        client,

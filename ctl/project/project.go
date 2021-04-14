@@ -195,6 +195,7 @@ func (p *Project) Down() error {
 	// Determine if we need to take down the network.
 	net := p.network()
 	exists, err := p.api.NetworkExists(net)
+	p.ctx.Informf("checking network exists %v %v", exists, err)
 	if err != nil {
 		return err
 	} else if !exists {

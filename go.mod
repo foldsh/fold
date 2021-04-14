@@ -15,7 +15,6 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-git/go-git/v5 v5.2.0
-	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.4.3
 	github.com/google/go-cmp v0.5.2
 	github.com/gorilla/mux v1.8.0 // indirect

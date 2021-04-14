@@ -88,6 +88,8 @@ func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
 	var mounts []mount.Mount
 	for _, m := range con.Mounts {
 		err := cr.fs.MkdirAll(m.Src, fs.DIR_PERMISSIONS)
+
+		cr.logger.Debug(err)
 		if err != nil {
 			return FailedToBindVolume
 		}
@@ -121,7 +123,6 @@ func (cr *ContainerRuntime) RunContainer(net *Network, con *Container) error {
 		nil,
 		con.Name,
 	)
-	cr.logger.Debug(resp)
 	if err != nil {
 		cr.logger.Debugf("Failed to create container: %v", err)
 		return FailedToCreateContainer
